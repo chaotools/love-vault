@@ -1,4 +1,7 @@
 node_modules/
 data/
+.env
+deploy/runtime.env
+deploy/*.enc
 *.log
 .DS_Store

@@ -4,6 +4,16 @@ const crypto = require('crypto');
 
 const sessions = new Set(); // token 集合，进程内存
 const COOKIE = 'vault_session';
+const SERVICE_TOKEN_HEADER = 'x-love-vault-service-token';
+
+function isServiceRequest(req) {
+  const configured = process.env.MOBILE_SERVICE_TOKEN;
+  const provided = req.get(SERVICE_TOKEN_HEADER) || '';
+  if (!configured || !provided) return false;
+  const expected = Buffer.from(configured);
+  const actual = Buffer.from(provided);
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+}
 
 function sessionCookie(token, req, maxAge) {
   // HTTPS（或明确要求）时禁止浏览器通过明文 HTTP 发送会话 Cookie。
@@ -30,6 +40,8 @@ const isEnabled = (config) => Boolean(config && config.auth && config.auth.hash)
 // 注意：必须传 store 而非 store.data——load() 会把 data 整个对象换掉，捕获旧引用会读到陈旧数据
 function requireAuth(store) {
   return (req, res, next) => {
+    // 小程序后端只经由本机网络调用，并使用单独的服务令牌；令牌不下发给客户端。
+    if (isServiceRequest(req)) return next();
     if (!isEnabled(store.data)) return next();
     const token = (req.headers.cookie || '').split(/;\s*/)
       .map((c) => c.split('=')).find(([k]) => k === COOKIE);
@@ -82,4 +94,4 @@ function router(store, saveConfig) {
   return r;
 }
 
-module.exports = { requireAuth, router, isEnabled };
+module.exports = { requireAuth, router, isEnabled, isServiceRequest, SERVICE_TOKEN_HEADER };
