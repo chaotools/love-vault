@@ -1,0 +1,15 @@
+services:
+  love-vault:
+    build: .
+    container_name: love-vault
+    restart: unless-stopped
+    ports:
+      - "3000:3000"          # 改左边端口即可换对外端口
+    volumes:
+      - ./data:/app/data     # 全部记忆都在这个目录，备份它就够了
+    environment:
+      - NODE_ENV=production
+      # AI 配置也可以在这里用环境变量注入（优先级高于网页设置）
+      # - AI_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+      # - AI_API_KEY=your-key
+      # - AI_MODEL=glm-4-flash
