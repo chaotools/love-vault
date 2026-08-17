@@ -58,6 +58,14 @@ pm2 save && pm2 startup
 | `AI_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | - | AI 配置，优先级高于网页设置（Key 不落盘场景） |
 | `TRUST_PROXY` | - | HTTPS 反向代理时设为 `1`，让会话 Cookie 正确标记为 Secure |
 | `COOKIE_SECURE` | 自动 | `true` 强制 Secure，`false` 关闭；本机 HTTP 调试保持默认即可 |
+| `MOBILE_SERVICE_TOKEN` | - | 小程序后端的内部服务令牌；仅服务器环境变量，绝不能发送给小程序 |
+
+### 小程序接入
+
+小程序不能直接使用网页 Cookie。仓库提供了服务令牌认证：将同一个高强度
+`MOBILE_SERVICE_TOKEN` 分别配置给 Love Vault 和小程序后端，小程序后端再验证微信
+Token 与 OpenID 白名单后代理有限的文字、照片和媒体接口。完整的 CNB、Nginx、备份与
+自动发布配置见 [deploy/README.md](deploy/README.md)。
 
 ### 安全（上服务器必读）
 

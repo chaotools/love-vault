@@ -1,0 +1,16 @@
+services:
+  love-vault:
+    image: ${CNB_IMAGE:?set CNB_IMAGE in /srv/love-vault/.env}:${LOVE_VAULT_TAG:?set LOVE_VAULT_TAG in deploy/runtime.env}
+    container_name: love-vault
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - /srv/love-vault/data:/app/data
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      TRUST_PROXY: 1
+      COOKIE_SECURE: true
+      MOBILE_SERVICE_TOKEN: ${MOBILE_SERVICE_TOKEN:?set MOBILE_SERVICE_TOKEN in /srv/love-vault/.env}

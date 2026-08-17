@@ -1,0 +1,61 @@
+name: Build and release to CNB
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm test
+
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to CNB Docker registry
+        if: ${{ secrets.CNB_TOKEN != '' && secrets.CNB_IMAGE != '' && secrets.DEPLOY_HOST != '' && secrets.DEPLOY_USER != '' && secrets.DEPLOY_SSH_KEY != '' && secrets.DEPLOY_KNOWN_HOSTS != '' }}
+        uses: docker/login-action@v3
+        with:
+          registry: docker.cnb.cool
+          username: cnb
+          password: ${{ secrets.CNB_TOKEN }}
+
+      - name: Build and push immutable and stable images
+        if: ${{ secrets.CNB_TOKEN != '' && secrets.CNB_IMAGE != '' && secrets.DEPLOY_HOST != '' && secrets.DEPLOY_USER != '' && secrets.DEPLOY_SSH_KEY != '' && secrets.DEPLOY_KNOWN_HOSTS != '' }}
+        env:
+          IMAGE: ${{ secrets.CNB_IMAGE }}
+          TAG: ${{ github.sha }}
+        run: |
+          test -n "$IMAGE"
+          docker buildx build --push \
+            --tag "$IMAGE:$TAG" \
+            --tag "$IMAGE:stable" \
+            .
+
+      - name: Deploy immutable image over SSH
+        if: ${{ secrets.CNB_TOKEN != '' && secrets.CNB_IMAGE != '' && secrets.DEPLOY_HOST != '' && secrets.DEPLOY_USER != '' && secrets.DEPLOY_SSH_KEY != '' && secrets.DEPLOY_KNOWN_HOSTS != '' }}
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
+          TAG: ${{ github.sha }}
+        run: |
+          test -n "$DEPLOY_HOST" && test -n "$DEPLOY_USER" && test -n "$DEPLOY_SSH_KEY" && test -n "$DEPLOY_KNOWN_HOSTS"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' "$CNB_TOKEN" | ssh -i ~/.ssh/id_ed25519 "$DEPLOY_USER@$DEPLOY_HOST" "/usr/local/bin/love-vault-release-from-stdin '$TAG'"
