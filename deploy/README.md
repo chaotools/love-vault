@@ -9,7 +9,7 @@
 3. 在服务器创建 `/srv/love-vault/.env`（权限 `600`）：
 
 ```dotenv
-CNB_IMAGE=docker.cnb.cool/<你的-CNB-仓库路径>/love-vault
+CNB_IMAGE=docker.cnb.cool/chaotools/love-vault
 MOBILE_SERVICE_TOKEN=<至少32位随机字符串>
 BACKUP_PASSPHRASE=<独立的高强度备份密码>
 ```
@@ -28,12 +28,12 @@ echo '<只读-CNB-部署令牌>' | docker login docker.cnb.cool -u cnb --passwor
 | 名称 | 用途 |
 | --- | --- |
 | `CNB_IMAGE` | 完整镜像名，不含标签 |
-| `CNB_TOKEN` | 可推送该 CNB 制品的访问令牌 |
+| `CNB_TOKEN` | 可推送 `chaotools/love-vault` Docker 制品的访问令牌（需启用 `registry-package` 读写权限） |
 | `DEPLOY_HOST` / `DEPLOY_USER` | 服务器 SSH 地址和部署用户 |
 | `DEPLOY_SSH_KEY` | 专用部署私钥 |
 | `DEPLOY_KNOWN_HOSTS` | `ssh-keyscan` 得到的主机指纹 |
 
-服务器上的 CNB 凭据只能拉取，GitHub Actions 中的 CNB 令牌才允许推送。
+服务器上的 CNB 凭据只能拉取，GitHub Actions 中的 CNB 令牌才允许推送。CNB 的 Docker 制品随代码仓库提供；同名镜像路径为 `docker.cnb.cool/chaotools/love-vault`。
 
 ## 备份与恢复
 
