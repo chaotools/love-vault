@@ -2,18 +2,20 @@
 // 环境变量：PORT(默认3000) / HOST(默认0.0.0.0，服务器可用) / DATA_DIR(默认./data)
 // 反向代理 HTTPS：TRUST_PROXY=1（让安全 Cookie 识别 X-Forwarded-Proto）
 // AI 覆盖：AI_BASE_URL / AI_API_KEY / AI_MODEL
+// 多用户模式：WEB_SESSION_SECRET / MOBILE_SERVICE_TOKEN（均未配置时退回本地单用户模式，数据用 data/ 根目录）
+// 旧版数据迁移：LEGACY_USER_ID=<用户ID>，启动时把 data/ 根目录的旧布局移入该用户目录（只执行一次）
 const express = require('express');
 const fsp = require('fs/promises');
 const path = require('path');
 const { exec } = require('child_process');
 
 const auth = require('./src/auth');
-const ai = require('./src/ai');
+const media = require('./src/media');
 const { configRouter } = require('./src/routes/config');
 const content = require('./src/routes/content');
 const { searchRouter } = require('./src/routes/search');
 const { askRouter } = require('./src/routes/ask');
-const { UserDataManager } = require('./src/user-data');
+const { UserDataManager, buildVault, loadVault, migrateLegacyTo } = require('./src/user-data');
 
 const ROOT = __dirname;
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -22,11 +24,25 @@ const DATA_DIR = path.resolve(ROOT, process.env.DATA_DIR || 'data');
 
 const PUBLIC_DIR = path.join(ROOT, 'public');
 
+// 本地单用户模式沿用 data/ 根目录的旧布局；多用户模式按用户隔离到 data/users/<userId>/
+const legacyVault = buildVault(DATA_DIR);
 const users = new UserDataManager(DATA_DIR);
+
 const getData = (req) => {
   const v = req.vault;
   return { config: v.config.data, profile: v.profile.data, preferences: v.preferences.list(), people: v.people.list(), events: v.events.list(), wishes: v.wishes.list(), gifts: v.gifts.list(), memories: v.memories.list().slice().sort((a, b) => (b.takenAt || '').localeCompare(a.takenAt || '')) };
 };
+
+// 认证之后挂载当前请求对应的保险库（本地模式 → data/ 根目录；多用户 → 各自目录）
+async function attachVault(req, res, next) {
+  try {
+    req.vault = req.vaultUserId === auth.LOCAL_USER_ID
+      ? legacyVault
+      : await users.get(req.vaultUserId);
+    next();
+  } catch (e) { next(e); }
+}
+const serveVaultDir = (key) => (req, res, next) => express.static(req.vault[key])(req, res, next);
 
 // ---------- 应用 ----------
 const app = express();
@@ -37,13 +53,9 @@ app.use(express.json({ limit: '4mb' }));
 // 认证：静态壳文件可访问，/api/auth/* 开放，其余 API 与媒体需要登录
 // 路由一律持有 store（每次请求动态读 .data）；直接传 .data 会因 load() 重赋值而失效
 app.use('/api/auth', auth.router());
-app.use('/api', auth.requireAuth);
-app.use('/api', async (req, res, next) => {
-  try { req.vault = await users.get(req.vaultUserId); next(); }
-  catch (e) { next(e); }
-});
+app.use('/api', auth.requireAuth, attachVault);
 
-app.use('/api/config', configRouter((req) => req.vault.config));
+app.use('/api/config', configRouter((req) => req.vault.config, (req) => req.vault.config.save()));
 app.use('/api/profile', content.profileRouter((req) => req.vault.profile));
 app.use('/api/preferences', content.preferencesRouter((req) => req.vault.preferences));
 app.use('/api/people', content.peopleRouter((req) => req.vault.people));
@@ -57,10 +69,10 @@ const memoriesApi = content.memoriesRouter((req) => req.vault.memories);
 app.use('/api/memories', memoriesApi.router);
 app.use('/api/upload', memoriesApi.router); // 兼容旧版上传路径
 
-// 媒体文件也受密码保护
-app.use('/media', auth.requireAuth, async (req, res, next) => { req.vault = await users.get(req.vaultUserId); express.static(req.vault.mediaDir)(req, res, next); });
-app.use('/thumbs', auth.requireAuth, async (req, res, next) => { req.vault = await users.get(req.vaultUserId); express.static(req.vault.thumbDir)(req, res, next); });
-app.use('/music', auth.requireAuth, async (req, res, next) => { req.vault = await users.get(req.vaultUserId); express.static(req.vault.musicDir)(req, res, next); });
+// 媒体文件随当前用户隔离，同样受登录保护
+app.use('/media', auth.requireAuth, attachVault, serveVaultDir('mediaDir'));
+app.use('/thumbs', auth.requireAuth, attachVault, serveVaultDir('thumbDir'));
+app.use('/music', auth.requireAuth, attachVault, serveVaultDir('musicDir'));
 
 // PWA 与静态资源（协商缓存，改动即时生效）
 app.use(express.static(PUBLIC_DIR, { etag: true, lastModified: true, setHeaders: (res, p) => { if (p.endsWith('sw.js')) res.setHeader('Cache-Control', 'no-cache'); } }));
@@ -68,7 +80,12 @@ app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'inde
 
 // ---------- 启动 ----------
 async function init() {
-  await fsp.mkdir(path.join(DATA_DIR, 'users'), { recursive: true });
+  await fsp.mkdir(DATA_DIR, { recursive: true });
+  const legacyId = process.env.LEGACY_USER_ID || '';
+  if (legacyId) await migrateLegacyTo(DATA_DIR, legacyId);
+  // 本地模式预加载根目录保险库；多用户保险库在首次请求时懒加载
+  await loadVault(legacyVault);
+  media.init(legacyVault.mediaDir, legacyVault.thumbDir); // 兼容 migrate-old 等旧调用
 }
 
 function openBrowser(url) {

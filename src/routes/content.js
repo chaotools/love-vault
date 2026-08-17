@@ -177,10 +177,10 @@ function memoriesRouter(collection) {
   return { router: r, publicMem };
 }
 
-// 启动时把 data/media 里未索引的文件补进集合（支持直接往文件夹拖文件）
-async function ensureIndex(collection) {
+// 启动时把媒体目录里未索引的文件补进集合（支持直接往文件夹拖文件）
+async function ensureIndex(collection, mediaDir, thumbDir) {
   let files = [];
-  try { files = await fsp.readdir(media.MEDIA_DIR()); } catch (e) { return; }
+  try { files = await fsp.readdir(mediaDir); } catch (e) { return; }
   const known = new Set(collection.list().map((m) => m.id));
   const existing = new Set(files);
   let changed = false;
@@ -192,7 +192,7 @@ async function ensureIndex(collection) {
     const id = file.replace(/\.[^.]+$/, '');
     if (known.has(id)) continue;
     try {
-      const mem = await media.indexFile(path.join(media.MEDIA_DIR(), file), file, id);
+      const mem = await media.indexFile(path.join(mediaDir, file), file, id, { thumbDir });
       await collection.add(mem);
       changed = true;
       console.log('已索引:', file);
