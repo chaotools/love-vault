@@ -146,7 +146,7 @@ async function generateVideoCover(src, dest, duration) {
 }
 
 // 把一个媒体文件索引成记忆对象（location/eventId 由用户后续编辑补充）
-async function indexFile(fullPath, filename, id) {
+async function indexFile(fullPath, filename, id, dirs = {}) {
   const ext = extOf(filename);
   const stat = await fsp.stat(fullPath);
   const isVideo = VIDEO_EXT.has(ext);
@@ -157,7 +157,7 @@ async function indexFile(fullPath, filename, id) {
     takenAt: null, note: '', tags: [], eventId: null, location: '',
     uploadedAt: new Date().toISOString()
   };
-  const thumbPath = path.join(THUMB_DIR, id + '.jpg');
+  const thumbPath = path.join(dirs.thumbDir || THUMB_DIR, id + '.jpg');
 
   if (isVideo) {
     mem.takenAt = (await readVideoDate(fullPath)) || stat.mtime.toISOString();
@@ -174,7 +174,7 @@ async function indexFile(fullPath, filename, id) {
 // HEIC/HEIF 转 jpg（浏览器才能直接显示）；返回新的文件名
 async function convertHeic(fullPath, filename) {
   const jpgName = filename.replace(/\.[^.]+$/, '.jpg');
-  const jpgPath = path.join(MEDIA_DIR, jpgName);
+  const jpgPath = path.join(path.dirname(fullPath), jpgName);
   await execFileP('ffmpeg', ['-y', '-i', fullPath, '-q:v', '2', jpgPath]);
   await fsp.unlink(fullPath).catch(() => {});
   return { filename: jpgName, fullPath: jpgPath };

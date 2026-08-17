@@ -12,30 +12,31 @@ const dateStr = (v) => {
 
 function collectionRouter(collection, sanitize) {
   const r = express.Router();
+  const resolve = (req) => typeof collection === 'function' ? collection(req) : collection;
 
-  r.get('/', (req, res) => res.json(collection.list()));
+  r.get('/', (req, res) => res.json(resolve(req).list()));
 
   r.post('/', async (req, res) => {
     try {
       const fields = sanitize(req.body || {});
-      const item = await collection.add(fields);
+      const item = await resolve(req).add(fields);
       res.json(item);
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
 
   r.patch('/:id', async (req, res) => {
-    const item = collection.get(req.params.id);
+    const item = resolve(req).get(req.params.id);
     if (!item) return res.status(404).json({ error: 'not found' });
     const patch = sanitize(req.body || {}, true);
     // 过滤掉未传的字段，避免把已有值覆盖成 undefined
     const clean = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
     if (!Object.keys(clean).length) return res.status(400).json({ error: '没有可更新的字段' });
-    const updated = await collection.update(req.params.id, clean);
+    const updated = await resolve(req).update(req.params.id, clean);
     res.json(updated);
   });
 
   r.delete('/:id', async (req, res) => {
-    const ok = await collection.remove(req.params.id);
+    const ok = await resolve(req).remove(req.params.id);
     ok ? res.json({ ok: true }) : res.status(404).json({ error: 'not found' });
   });
 

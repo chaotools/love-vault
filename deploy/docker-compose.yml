@@ -14,3 +14,7 @@ services:
       TRUST_PROXY: 1
       COOKIE_SECURE: true
       MOBILE_SERVICE_TOKEN: ${MOBILE_SERVICE_TOKEN:?set MOBILE_SERVICE_TOKEN in /srv/love-vault/.env}
+      WEB_SESSION_SECRET: ${WEB_SESSION_SECRET:?set WEB_SESSION_SECRET in /srv/love-vault/.env}
+      AUTH_BROKER_URL: ${AUTH_BROKER_URL:-http://host.docker.internal:8899/api/love-vault}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

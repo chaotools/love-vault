@@ -27,7 +27,7 @@ async function boot() {
   store.on('needLogin', (v) => { $('loginOverlay').hidden = !v; });
   let auth;
   try { auth = await get('/api/auth/status'); } catch (e) { auth = { enabled: false }; }
-  if (auth.enabled) $('loginOverlay').hidden = false;
+  if (!auth.authenticated) $('loginOverlay').hidden = false;
 
   try {
     store.set('config', await get('/api/config'));
@@ -152,26 +152,28 @@ async function renderBanners() {
 
 /* ---------- 登录 ---------- */
 function initLogin() {
-  const tryLogin = async () => {
-    const pwd = $('loginPassword').value;
-    if (!pwd) return;
+  let poll = null;
+  const begin = async () => {
     try {
-      const r = await post('/api/auth/login', { password: pwd });
-      if (r.ok) {
-        $('loginOverlay').hidden = true;
-        $('loginErr').hidden = true;
-        $('loginPassword').value = '';
-        store.set('config', await get('/api/config'));
-        store.set('ai', await get('/api/ask/status'));
-        renderBanners();
-        router();
-      }
+      const login = await post('/api/auth/web-login/start', {});
+      $('loginQr').src = login.qr;
+      $('loginErr').hidden = true;
+      clearInterval(poll);
+      poll = setInterval(async () => {
+        try {
+          const status = await get('/api/auth/web-login/status?id=' + encodeURIComponent(login.id) + '&secret=' + encodeURIComponent(login.secret));
+          if (status.status === 'expired') { clearInterval(poll); $('loginErr').hidden = false; return; }
+          if (status.status !== 'claimed' || !status.ticket) return;
+          clearInterval(poll);
+          await post('/api/auth/web-exchange', { ticket: status.ticket });
+          location.reload();
+        } catch { /* 下一轮轮询重试 */ }
+      }, 1800);
     } catch (e) {
       $('loginErr').hidden = false;
     }
   };
-  $('loginBtn').addEventListener('click', tryLogin);
-  $('loginPassword').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryLogin(); });
+  begin();
 }
 
 /* ---------- 背景音乐 ---------- */
@@ -376,14 +378,6 @@ async function openSettings() {
     }
   });
 
-  // —— 安全区 ——
-  const sNewPwd = input({ type: 'password', placeholder: cfg.hasPassword ? '输入新密码（留空不修改）' : '设置访问密码（部署到服务器强烈建议）' });
-  const sClearPwd = cfg.hasPassword ? el('button', {
-    class: 'ghost-btn danger', text: '取消密码', onclick: async () => {
-      try { await post('/api/auth/password', { newPassword: '' }); toast('已取消密码'); m.close(); } catch (e) { toast(e.message, 'err'); }
-    }
-  }) : null;
-
   const m = openModal({
     title: '设置 ⚙', wide: true,
     content: el('div', null,
@@ -399,10 +393,6 @@ async function openSettings() {
         field('模型', el('span', null, sModel, modelList)),
         field('API Key', sApiKey),
         el('div', { class: 'modal-foot', style: 'justify-content:flex-start;margin-top:4px' }, testAi, aiStatusLine)
-      ),
-      el('div', { class: 'settings-section' },
-        el('h4', { text: '安全' }),
-        field('访问密码', sNewPwd), sClearPwd
       )
     ),
     buttons: [
@@ -417,10 +407,6 @@ async function openSettings() {
                 memorialDays: days.filter((d) => d.name && d.date),
                 ai: { provider: sProvider.value, baseUrl: sBaseUrl.value.trim(), apiKey: sApiKey.value.trim(), model: sModel.value.trim() }
               });
-              if (sNewPwd.value) {
-                await post('/api/auth/password', { newPassword: sNewPwd.value });
-                toast('密码已更新');
-              }
               store.set('config', saved);
               store.set('ai', await get('/api/ask/status'));
               toast('已保存 💕');

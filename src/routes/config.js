@@ -14,6 +14,7 @@ const DEFAULT_CONFIG = {
 
 function configRouter(store, save) {
   const r = express.Router();
+  const resolve = (req) => typeof store === 'function' ? store(req) : store;
 
   // API Key 只用于服务器向模型供应商发请求；不要因打开设置页面而回传给浏览器。
   const publicConfig = (config) => {
@@ -27,11 +28,12 @@ function configRouter(store, save) {
   };
 
   r.get('/', (req, res) => {
-    res.json(publicConfig(store.data));
+    res.json(publicConfig(resolve(req).data));
   });
 
   r.post('/', async (req, res) => {
-    const config = store.data;
+    const currentStore = resolve(req);
+    const config = currentStore.data;
     const b = req.body || {};
     for (const k of ['title', 'names', 'anniversary', 'music']) {
       if (typeof b[k] === 'string') config[k] = b[k];
@@ -53,7 +55,7 @@ function configRouter(store, save) {
         model: typeof b.ai.model === 'string' ? b.ai.model.trim() : ''
       };
     }
-    await save();
+    await (typeof save === 'function' ? save(req) : currentStore.save());
     res.json(publicConfig(config));
   });
 
