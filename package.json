@@ -9,12 +9,12 @@
     "migrate-old": "node migrate-old.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20.9"
   },
   "dependencies": {
     "express": "^4.21.2",
     "multer": "^2.0.1",
     "qrcode": "^1.5.4",
-    "sharp": "^0.33.5"
+    "sharp": "^0.35.3"
   }
 }
