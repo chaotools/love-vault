@@ -1,5 +1,6 @@
 // 爱人记忆库 · Love Vault
 // 环境变量：PORT(默认3000) / HOST(默认0.0.0.0，服务器可用) / DATA_DIR(默认./data)
+// 反向代理 HTTPS：TRUST_PROXY=1（让安全 Cookie 识别 X-Forwarded-Proto）
 // AI 覆盖：AI_BASE_URL / AI_API_KEY / AI_MODEL
 const express = require('express');
 const fsp = require('fs/promises');
@@ -49,6 +50,8 @@ const getData = () => ({
 
 // ---------- 应用 ----------
 const app = express();
+// 仅在明确配置时信任反向代理传来的协议头，避免直接暴露端口时信任伪造头。
+if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
 app.use(express.json({ limit: '4mb' }));
 
 // 认证：静态壳文件可访问，/api/auth/* 开放，其余 API 与媒体需要登录
@@ -71,9 +74,9 @@ app.use('/api/memories', memoriesApi.router);
 app.use('/api/upload', memoriesApi.router); // 兼容旧版上传路径
 
 // 媒体文件也受密码保护
-app.use('/media', auth.requireAuth(configStore.data), express.static(MEDIA_DIR));
-app.use('/thumbs', auth.requireAuth(configStore.data), express.static(THUMB_DIR));
-app.use('/music', auth.requireAuth(configStore.data), express.static(MUSIC_DIR));
+app.use('/media', auth.requireAuth(configStore), express.static(MEDIA_DIR));
+app.use('/thumbs', auth.requireAuth(configStore), express.static(THUMB_DIR));
+app.use('/music', auth.requireAuth(configStore), express.static(MUSIC_DIR));
 
 // PWA 与静态资源（协商缓存，改动即时生效）
 app.use(express.static(PUBLIC_DIR, { etag: true, lastModified: true, setHeaders: (res, p) => { if (p.endsWith('sw.js')) res.setHeader('Cache-Control', 'no-cache'); } }));

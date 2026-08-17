@@ -56,6 +56,8 @@ pm2 save && pm2 startup
 | `HOST` | 0.0.0.0 | 监听地址（只本机用可设 127.0.0.1） |
 | `DATA_DIR` | ./data | 数据目录（可指到独立磁盘/挂载卷） |
 | `AI_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | - | AI 配置，优先级高于网页设置（Key 不落盘场景） |
+| `TRUST_PROXY` | - | HTTPS 反向代理时设为 `1`，让会话 Cookie 正确标记为 Secure |
+| `COOKIE_SECURE` | 自动 | `true` 强制 Secure，`false` 关闭；本机 HTTP 调试保持默认即可 |
 
 ### 安全（上服务器必读）
 
@@ -67,6 +69,8 @@ love.example.com {
     reverse_proxy 127.0.0.1:3000
 }
 ```
+
+反向代理部署时，请同时为服务设置 `TRUST_PROXY=1`；这样登录会话 Cookie 会带上 `Secure` 标记，避免被 HTTP 传输。
 
 nginx 等价配置：`location / { proxy_pass http://127.0.0.1:3000; proxy_set_header Host $host; }`
 

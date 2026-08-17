@@ -5,6 +5,14 @@ const crypto = require('crypto');
 const sessions = new Set(); // token 集合，进程内存
 const COOKIE = 'vault_session';
 
+function sessionCookie(token, req, maxAge) {
+  // HTTPS（或明确要求）时禁止浏览器通过明文 HTTP 发送会话 Cookie。
+  // TRUST_PROXY=1 时 Express 会根据受信任代理的 X-Forwarded-Proto 设置 req.secure。
+  const secure = process.env.COOKIE_SECURE === 'true'
+    || (process.env.COOKIE_SECURE !== 'false' && req.secure);
+  return `${COOKIE}=${token}; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure ? '; Secure' : ''}`;
+}
+
 function hashPassword(password, salt) {
   salt = salt || crypto.randomBytes(16).toString('hex');
   const hash = crypto.scryptSync(String(password), salt, 32).toString('hex');
@@ -44,7 +52,7 @@ function router(store, saveConfig) {
     }
     const token = crypto.randomBytes(24).toString('hex');
     sessions.add(token);
-    res.setHeader('Set-Cookie', `${COOKIE}=${token}; HttpOnly; Path=/; Max-Age=2592000; SameSite=Lax`);
+    res.setHeader('Set-Cookie', sessionCookie(token, req, 2592000));
     res.json({ ok: true });
   });
 
@@ -52,7 +60,7 @@ function router(store, saveConfig) {
     const token = (req.headers.cookie || '').split(/;\s*/)
       .map((c) => c.split('=')).find(([k]) => k === COOKIE);
     if (token) sessions.delete(decodeURIComponent(token[1]));
-    res.setHeader('Set-Cookie', `${COOKIE}=; HttpOnly; Path=/; Max-Age=0`);
+    res.setHeader('Set-Cookie', sessionCookie('', req, 0));
     res.json({ ok: true });
   });
 

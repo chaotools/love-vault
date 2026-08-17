@@ -348,7 +348,7 @@ async function openSettings() {
   const sBaseUrl = input({ type: 'text', value: ai.baseUrl || '', placeholder: '留空用该供应商默认地址' });
   const sModel = input({ type: 'text', value: ai.model || '', list: 'modelList', placeholder: '模型名' });
   const modelList = el('datalist', { id: 'modelList' });
-  const sApiKey = input({ type: 'password', value: ai.apiKey || '', placeholder: aiStatus.fromEnv ? '已用环境变量配置，留空即可' : 'API Key' });
+  const sApiKey = input({ type: 'password', value: '', placeholder: aiStatus.fromEnv ? '已用环境变量配置，留空即可' : (ai.hasApiKey ? '已保存，留空则不修改' : 'API Key') });
   const aiStatusLine = el('div', { class: 'ai-status-line', text: aiStatus.configured ? `当前可用：${aiStatus.provider} · ${aiStatus.model}` : '尚未配置' });
 
   const refreshModels = () => {
