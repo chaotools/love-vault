@@ -14,13 +14,8 @@ MOBILE_SERVICE_TOKEN=<至少32位随机字符串>
 BACKUP_PASSPHRASE=<独立的高强度备份密码>
 ```
 
-4. 登录 CNB（令牌不会写入 Git 仓库）：
-
-```bash
-echo '<只读-CNB-部署令牌>' | docker login docker.cnb.cool -u cnb --password-stdin
-```
-
-5. 上传 `docker-compose.yml`、`release.sh`、`backup.sh` 到 `/srv/love-vault/`，并执行 `chmod 700 /srv/love-vault/{release,backup}.sh`。
+4. 上传 `docker-compose.yml`、`release.sh`、`release-from-stdin.sh`、`backup.sh` 到 `/srv/love-vault/`，并执行 `chmod 700 /srv/love-vault/{release,release-from-stdin,backup}.sh`。
+   发布工作流通过 SSH 标准输入临时登录 CNB，拉取后立即退出登录，因此服务器不保存 CNB 凭据。
 6. 将 `love.chaotools.tech` 的 A 记录指向服务器；安装 Nginx 配置并通过 Certbot 签发证书。
 
 ## GitHub Secrets
@@ -33,7 +28,7 @@ echo '<只读-CNB-部署令牌>' | docker login docker.cnb.cool -u cnb --passwor
 | `DEPLOY_SSH_KEY` | 专用部署私钥 |
 | `DEPLOY_KNOWN_HOSTS` | `ssh-keyscan` 得到的主机指纹 |
 
-服务器上的 CNB 凭据只能拉取，GitHub Actions 中的 CNB 令牌才允许推送。CNB 的 Docker 制品随代码仓库提供；同名镜像路径为 `docker.cnb.cool/chaotools/love-vault`。
+CNB 的 Docker 制品随代码仓库提供；同名镜像路径为 `docker.cnb.cool/chaotools/love-vault`。建议后续将 `CNB_TOKEN` 换成只拥有该制品库读写权限的专用令牌。
 
 ## 备份与恢复
 
