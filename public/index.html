@@ -10,15 +10,14 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <!-- 登录遮罩（设置密码后出现） -->
+  <!-- 小程序扫码登录；静态壳可公开，任何数据接口都需要会话。 -->
   <div class="login-overlay" id="loginOverlay" hidden>
     <div class="login-card">
       <div class="login-logo">💕</div>
       <h2>爱人记忆库</h2>
-      <p class="login-sub">这里藏着我们的一切，请输入密码</p>
-      <input type="password" id="loginPassword" placeholder="访问密码" autocomplete="current-password">
-      <button class="primary-btn" id="loginBtn">进入</button>
-      <p class="login-err" id="loginErr" hidden>密码不对，再想想？</p>
+      <p class="login-sub">打开“超简单工具箱”小程序，在 Love Vault 中点击“扫码登录网页版”</p>
+      <img id="loginQr" width="260" height="260" alt="Love Vault 登录二维码">
+      <p class="login-err" id="loginErr" hidden>二维码已失效，请刷新页面重试。</p>
     </div>
   </div>
 

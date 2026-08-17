@@ -7,7 +7,7 @@ function searchRouter(getData) {
   r.get('/', (req, res) => {
     const q = String(req.query.q || '').trim().toLowerCase();
     if (!q) return res.json({ q: '', groups: [] });
-    const d = getData();
+    const d = getData(req);
     const hits = [];
     const push = (module, id, title, subtitle) => hits.push({ module, id, title, subtitle });
 

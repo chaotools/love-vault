@@ -11,8 +11,11 @@
 ```dotenv
 CNB_IMAGE=docker.cnb.cool/chaotools/love-vault
 MOBILE_SERVICE_TOKEN=<至少32位随机字符串>
+WEB_SESSION_SECRET=<至少32位随机字符串>
 BACKUP_PASSPHRASE=<独立的高强度备份密码>
 ```
+
+公开多用户模式下，小程序后端还需设置 `LOVE_VAULT_BASE_URL` 与 `LOVE_VAULT_SERVICE_TOKEN`；不再使用 `LOVE_VAULT_ALLOWED_OPENIDS`。容器默认经 `host.docker.internal:8899` 向该后端兑换扫码登录凭证。
 
 4. 上传 `docker-compose.yml`、`release.sh`、`release-from-stdin.sh`、`backup.sh` 到 `/srv/love-vault/`，并执行 `chmod 700 /srv/love-vault/{release,release-from-stdin,backup}.sh`。
    发布工作流通过 SSH 标准输入临时登录 CNB，拉取后立即退出登录，因此服务器不保存 CNB 凭据。

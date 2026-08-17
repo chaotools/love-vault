@@ -1,97 +1,91 @@
-// 访问密码门：scrypt 哈希存储，内存会话（重启后需重新登录，对私人应用足够）
+// Love Vault 身份边界：网页会话来自小程序扫码，服务端代理必须同时提供用户 ID。
 const express = require('express');
 const crypto = require('crypto');
+const QRCode = require('qrcode');
 
-const sessions = new Set(); // token 集合，进程内存
 const COOKIE = 'vault_session';
 const SERVICE_TOKEN_HEADER = 'x-love-vault-service-token';
+const USER_HEADER = 'x-love-vault-user-id';
+const USER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function isServiceRequest(req) {
-  const configured = process.env.MOBILE_SERVICE_TOKEN;
-  const provided = req.get(SERVICE_TOKEN_HEADER) || '';
-  if (!configured || !provided) return false;
-  const expected = Buffer.from(configured);
-  const actual = Buffer.from(provided);
-  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+function secret() { return process.env.WEB_SESSION_SECRET || ''; }
+function serviceMatches(req) {
+  const expected = process.env.MOBILE_SERVICE_TOKEN || '';
+  const actual = req.get(SERVICE_TOKEN_HEADER) || '';
+  const userId = req.get(USER_HEADER) || '';
+  if (!expected || !actual || !USER_ID.test(userId)) return false;
+  const a = Buffer.from(actual); const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+function sign(value) { return crypto.createHmac('sha256', secret()).update(value).digest('base64url'); }
+function mintSession(userId) {
+  const payload = Buffer.from(JSON.stringify({ userId, exp: Date.now() + 30 * 86400_000 })).toString('base64url');
+  return payload + '.' + sign(payload);
+}
+function readSession(req) {
+  if (!secret()) return null;
+  const raw = (req.headers.cookie || '').split(/;\s*/).find((c) => c.startsWith(COOKIE + '='));
+  if (!raw) return null;
+  const token = decodeURIComponent(raw.slice(COOKIE.length + 1));
+  const [payload, signature] = token.split('.');
+  if (!payload || !signature) return null;
+  const a = Buffer.from(signature); const b = Buffer.from(sign(payload));
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return USER_ID.test(data.userId || '') && Number(data.exp) > Date.now() ? data.userId : null;
+  } catch { return null; }
+}
+function cookie(value, maxAge) { return `${COOKIE}=${encodeURIComponent(value)}; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=Lax; Secure`; }
+
+function requireAuth(req, res, next) {
+  if (serviceMatches(req)) { req.vaultUserId = req.get(USER_HEADER); return next(); }
+  const userId = readSession(req);
+  if (userId) { req.vaultUserId = userId; return next(); }
+  return res.status(401).json({ error: 'unauthorized', needLogin: true });
 }
 
-function sessionCookie(token, req, maxAge) {
-  // HTTPS（或明确要求）时禁止浏览器通过明文 HTTP 发送会话 Cookie。
-  // TRUST_PROXY=1 时 Express 会根据受信任代理的 X-Forwarded-Proto 设置 req.secure。
-  const secure = process.env.COOKIE_SECURE === 'true'
-    || (process.env.COOKIE_SECURE !== 'false' && req.secure);
-  return `${COOKIE}=${token}; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure ? '; Secure' : ''}`;
-}
-
-function hashPassword(password, salt) {
-  salt = salt || crypto.randomBytes(16).toString('hex');
-  const hash = crypto.scryptSync(String(password), salt, 32).toString('hex');
-  return { salt, hash };
-}
-
-function verifyPassword(password, salt, hash) {
-  const check = crypto.scryptSync(String(password), salt, 32).toString('hex');
-  return crypto.timingSafeEqual(Buffer.from(check), Buffer.from(hash));
-}
-
-const isEnabled = (config) => Boolean(config && config.auth && config.auth.hash);
-
-// Express 中间件：未设密码直接放行；有密码则校验会话 cookie
-// 注意：必须传 store 而非 store.data——load() 会把 data 整个对象换掉，捕获旧引用会读到陈旧数据
-function requireAuth(store) {
-  return (req, res, next) => {
-    // 小程序后端只经由本机网络调用，并使用单独的服务令牌；令牌不下发给客户端。
-    if (isServiceRequest(req)) return next();
-    if (!isEnabled(store.data)) return next();
-    const token = (req.headers.cookie || '').split(/;\s*/)
-      .map((c) => c.split('=')).find(([k]) => k === COOKIE);
-    if (token && sessions.has(decodeURIComponent(token[1]))) return next();
-    res.status(401).json({ error: 'unauthorized', needLogin: true });
-  };
-}
-
-function router(store, saveConfig) {
+function router() {
   const r = express.Router();
-
-  r.get('/status', (req, res) => res.json({ enabled: isEnabled(store.data) }));
-
-  r.post('/login', async (req, res) => {
-    if (!isEnabled(store.data)) return res.json({ ok: true });
-    const { password } = req.body || {};
-    await new Promise((resolve) => setTimeout(resolve, 600)); // 减缓暴力尝试
-    if (!password || !verifyPassword(password, store.data.auth.salt, store.data.auth.hash)) {
-      return res.status(401).json({ ok: false, error: '密码不对' });
-    }
-    const token = crypto.randomBytes(24).toString('hex');
-    sessions.add(token);
-    res.setHeader('Set-Cookie', sessionCookie(token, req, 2592000));
-    res.json({ ok: true });
+  r.get('/status', (req, res) => res.json({ enabled: true, authenticated: Boolean(readSession(req)) }));
+  r.post('/logout', (req, res) => { res.setHeader('Set-Cookie', cookie('', 0)); res.json({ ok: true }); });
+  r.post('/web-login/start', async (req, res) => {
+    const broker = process.env.AUTH_BROKER_URL || '';
+    if (!broker) return res.status(503).json({ error: '网页登录尚未配置' });
+    try {
+      const response = await fetch(broker.replace(/\/$/, '') + '/web-login/start', { method: 'POST' });
+      const body = await response.json();
+      if (!response.ok) return res.status(response.status).json(body);
+      body.qr = await QRCode.toDataURL(body.scanValue, { width: 260, margin: 1, errorCorrectionLevel: 'M' });
+      delete body.scanValue;
+      res.json(body);
+    } catch { res.status(503).json({ error: '登录服务暂时不可用' }); }
   });
-
-  r.post('/logout', (req, res) => {
-    const token = (req.headers.cookie || '').split(/;\s*/)
-      .map((c) => c.split('=')).find(([k]) => k === COOKIE);
-    if (token) sessions.delete(decodeURIComponent(token[1]));
-    res.setHeader('Set-Cookie', sessionCookie('', req, 0));
-    res.json({ ok: true });
+  r.get('/web-login/status', async (req, res) => {
+    const broker = process.env.AUTH_BROKER_URL || '';
+    const id = encodeURIComponent(String(req.query.id || '')); const secretValue = encodeURIComponent(String(req.query.secret || ''));
+    if (!broker || !id || !secretValue) return res.status(400).json({ error: '登录会话无效' });
+    try {
+      const response = await fetch(broker.replace(/\/$/, '') + `/web-login/status?loginId=${id}&secret=${secretValue}`);
+      const body = await response.json(); res.status(response.status).json(body);
+    } catch { res.status(503).json({ error: '登录服务暂时不可用' }); }
   });
-
-  // 设置/修改/取消密码（需要当前会话已登录，或从未设过密码）
-  r.post('/password', requireAuth(store), async (req, res) => {
-    const { newPassword } = req.body || {};
-    if (newPassword === undefined) return res.status(400).json({ error: '缺少参数' });
-    if (newPassword === '') {
-      delete store.data.auth;
-    } else {
-      if (String(newPassword).length < 4) return res.status(400).json({ error: '密码至少 4 位' });
-      const { salt, hash } = hashPassword(newPassword);
-      store.data.auth = { salt, hash };
-    }
-    await saveConfig();
-    res.json({ ok: true, enabled: Boolean(store.data.auth) });
+  r.post('/web-exchange', express.json(), async (req, res) => {
+    const ticket = String((req.body || {}).ticket || '');
+    const broker = process.env.AUTH_BROKER_URL || '';
+    if (!ticket || !broker || !process.env.MOBILE_SERVICE_TOKEN || !secret()) return res.status(503).json({ error: '网页登录尚未配置' });
+    try {
+      const response = await fetch(broker.replace(/\/$/, '') + '/internal/web-login/consume', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', [SERVICE_TOKEN_HEADER]: process.env.MOBILE_SERVICE_TOKEN },
+        body: JSON.stringify({ ticket })
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !USER_ID.test(body.userId || '')) return res.status(401).json({ error: body.detail || '登录凭证已失效' });
+      res.setHeader('Set-Cookie', cookie(mintSession(body.userId), 30 * 86400));
+      res.json({ ok: true });
+    } catch { res.status(503).json({ error: '登录服务暂时不可用' }); }
   });
-
   return r;
 }
 
-module.exports = { requireAuth, router, isEnabled, isServiceRequest, SERVICE_TOKEN_HEADER };
+module.exports = { requireAuth, router, readSession, serviceMatches, COOKIE, SERVICE_TOKEN_HEADER, USER_HEADER };

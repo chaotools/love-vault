@@ -77,10 +77,12 @@ const PROFILE_DEFAULT = {
 
 function profileRouter(store) {
   const r = express.Router();
-  r.get('/', (req, res) => res.json(store.data));
+  const resolve = (req) => typeof store === 'function' ? store(req) : store;
+  r.get('/', (req, res) => res.json(resolve(req).data));
   r.put('/', async (req, res) => {
     const b = req.body || {};
-    const cur = store.data;
+    const currentStore = resolve(req);
+    const cur = currentStore.data;
     // 分区合并，保证结构稳定
     const next = {
       basics: { ...PROFILE_DEFAULT.basics, ...cur.basics, ...(typeof b.basics === 'object' && b.basics ? b.basics : {}) },
@@ -95,8 +97,8 @@ function profileRouter(store) {
         .filter((d) => typeof d === 'string' && !isNaN(new Date(d).getTime()))
         .slice(-12);
     }
-    store.data = next;
-    await store.save();
+    currentStore.data = next;
+    await currentStore.save();
     res.json(next);
   });
   return r;
@@ -105,9 +107,10 @@ function profileRouter(store) {
 // ---------- 照片/视频 ----------
 function memoriesRouter(collection) {
   const r = express.Router();
+  const resolve = (req) => typeof collection === 'function' ? collection(req) : collection;
 
   const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, media.MEDIA_DIR()),
+    destination: (req, file, cb) => cb(null, req.vault.mediaDir),
     filename: (req, file, cb) => {
       const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
       cb(null, crypto.randomUUID() + ext);
@@ -122,7 +125,7 @@ function memoriesRouter(collection) {
   });
 
   r.get('/', (req, res) => {
-    res.json(collection.list()
+    res.json(resolve(req).list()
       .slice()
       .sort((a, b) => (b.takenAt || '').localeCompare(a.takenAt || '')));
   });
@@ -138,8 +141,8 @@ function memoriesRouter(collection) {
           filename = conv.filename; fullPath = conv.fullPath;
         }
         const id = filename.replace(/\.[^.]+$/, '');
-        const mem = await media.indexFile(fullPath, filename, id);
-        await collection.add(mem); // add 会补 id/createdAt，用 mem 覆盖
+        const mem = await media.indexFile(fullPath, filename, id, { thumbDir: req.vault.thumbDir });
+        await resolve(req).add(mem); // add 会补 id/createdAt，用 mem 覆盖
         results.push(publicMem(mem));
       }
       res.json({ ok: true, items: results });
@@ -150,7 +153,7 @@ function memoriesRouter(collection) {
   });
 
   r.patch('/:id', async (req, res) => {
-    const mem = collection.get(req.params.id);
+    const mem = resolve(req).get(req.params.id);
     if (!mem) return res.status(404).json({ error: 'not found' });
     const b = req.body || {};
     if (typeof b.note === 'string') mem.note = b.note.trim();
@@ -158,16 +161,16 @@ function memoriesRouter(collection) {
     if (typeof b.eventId === 'string' || b.eventId === null) mem.eventId = b.eventId;
     if (Array.isArray(b.tags)) mem.tags = b.tags.filter((t) => typeof t === 'string' && t.trim()).map((t) => t.trim());
     if (typeof b.takenAt === 'string' && b.takenAt) mem.takenAt = new Date(b.takenAt).toISOString();
-    await collection.update(mem.id, {});
+    await resolve(req).update(mem.id, {});
     res.json(publicMem(mem));
   });
 
   r.delete('/:id', async (req, res) => {
-    const mem = collection.get(req.params.id);
+    const mem = resolve(req).get(req.params.id);
     if (!mem) return res.status(404).json({ error: 'not found' });
-    await fsp.unlink(path.join(media.MEDIA_DIR(), mem.filename)).catch(() => {});
-    await fsp.unlink(path.join(media.THUMB_DIR(), mem.id + '.jpg')).catch(() => {});
-    await collection.remove(mem.id);
+    await fsp.unlink(path.join(req.vault.mediaDir, mem.filename)).catch(() => {});
+    await fsp.unlink(path.join(req.vault.thumbDir, mem.id + '.jpg')).catch(() => {});
+    await resolve(req).remove(mem.id);
     res.json({ ok: true });
   });
 

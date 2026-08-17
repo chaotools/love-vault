@@ -14,17 +14,16 @@ function run(middleware, headers = {}) {
   return { nextCalled, statusCode };
 }
 
-test('service token bypasses the browser session check only when it matches', () => {
+test('internal requests need both the service token and a valid opaque user id', () => {
   const previous = process.env.MOBILE_SERVICE_TOKEN;
   process.env.MOBILE_SERVICE_TOKEN = 'test-service-token';
-  const middleware = requireAuth({ data: { auth: { hash: 'enabled' } } });
-
-  assert.deepEqual(run(middleware, { 'x-love-vault-service-token': 'test-service-token' }), {
+  assert.deepEqual(run(requireAuth, { 'x-love-vault-service-token': 'test-service-token', 'x-love-vault-user-id': '3aa6dbfc-a08c-4f27-9b13-96ee1891cb7c' }), {
     nextCalled: true, statusCode: null
   });
-  assert.deepEqual(run(middleware, { 'x-love-vault-service-token': 'wrong' }), {
+  assert.deepEqual(run(requireAuth, { 'x-love-vault-service-token': 'wrong', 'x-love-vault-user-id': '3aa6dbfc-a08c-4f27-9b13-96ee1891cb7c' }), {
     nextCalled: false, statusCode: 401
   });
+  assert.deepEqual(run(requireAuth, { 'x-love-vault-service-token': 'test-service-token' }), { nextCalled: false, statusCode: 401 });
 
   if (previous === undefined) delete process.env.MOBILE_SERVICE_TOKEN;
   else process.env.MOBILE_SERVICE_TOKEN = previous;
