@@ -37,6 +37,31 @@ function getZodiac(month, day) {
   return '摩羯座';
 }
 
+// 生日用年/月/日三段下拉：原生 date 控件的滚轮年份每次只 +1，选出生年份要滚好几十下，太慢
+const BIRTHDAY_YEAR_MIN = 1925;
+function buildYearOptions() {
+  const thisYear = new Date().getFullYear();
+  const opts = [['', '年']];
+  for (let y = thisYear; y >= BIRTHDAY_YEAR_MIN; y--) opts.push([String(y), String(y)]);
+  return opts;
+}
+function buildMonthOptions() {
+  const opts = [['', '月']];
+  for (let m = 1; m <= 12; m++) opts.push([String(m), String(m)]);
+  return opts;
+}
+function daysInMonth(y, m) {
+  if (!m) return 31;
+  if (!y) y = 2000;
+  return new Date(y, m, 0).getDate();
+}
+function buildDayOptions(y, m) {
+  const max = daysInMonth(y ? +y : 2000, m ? +m : 12);
+  const opts = [['', '日']];
+  for (let d = 1; d <= max; d++) opts.push([String(d), String(d)]);
+  return opts;
+}
+
 const HEALTH_FIELDS = [['allergies', '过敏（食物/药物）'], ['medications', '正在用的药'], ['notes', '其他健康备注']];
 
 let profile = null;
@@ -103,18 +128,37 @@ function editBasics() {
   const inputs = {};
   const content = el('div', null, ...BASIC_FIELDS.map(([k, label]) => {
     if (k === 'birthday') {
-      inputs[k] = input({
-        type: 'date',
-        value: normalizeBirthday(profile.basics && profile.basics[k]),
-        onchange: () => {
-          const v = inputs.birthday.value;
-          if (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
-            const p = v.split('-');
-            inputs.zodiac.value = getZodiac(parseInt(p[1], 10), parseInt(p[2], 10));
-          }
-        }
-      });
-      return field(label, inputs[k]);
+      const cur = normalizeBirthday(profile.basics && profile.basics[k]); // 'YYYY-MM-DD' | ''
+      const [ey, em, ed] = cur ? cur.split('-').map((n) => String(parseInt(n, 10))) : ['', '', ''];
+      const yearSel = select(buildYearOptions(), ey);
+      const monthSel = select(buildMonthOptions(), em);
+      const daySel = select(buildDayOptions(ey, em), ed);
+      const hidden = el('input', { type: 'hidden', value: cur });
+      inputs[k] = hidden;
+
+      // 切换年/月时重排「日」选项（2 月、闰年、大小月天数不同），并保留已选日（超界则清空）
+      const syncDays = () => {
+        const max = daysInMonth(yearSel.value ? +yearSel.value : 2000, monthSel.value ? +monthSel.value : 12);
+        const prev = daySel.value;
+        daySel.innerHTML = '';
+        daySel.append(el('option', { value: '', text: '日' }));
+        for (let d = 1; d <= max; d++) daySel.append(el('option', { value: String(d), text: String(d) }));
+        daySel.value = prev && +prev <= max ? prev : '';
+      };
+      // 合成 YYYY-MM-DD 写入隐藏字段，并按月日自动补星座（仍可被手动改）
+      const refresh = () => {
+        const y = yearSel.value, m = monthSel.value, d = daySel.value;
+        hidden.value = y && m && d ? `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` : '';
+        if (inputs.zodiac) inputs.zodiac.value = hidden.value ? getZodiac(+m, +d) : '';
+      };
+      yearSel.addEventListener('change', () => { syncDays(); refresh(); });
+      monthSel.addEventListener('change', () => { syncDays(); refresh(); });
+      daySel.addEventListener('change', refresh);
+
+      return field(label, el('div', { class: 'birthday-selects' },
+        yearSel, el('span', { class: 'bd-sep', text: '年' }),
+        monthSel, el('span', { class: 'bd-sep', text: '月' }),
+        daySel, el('span', { class: 'bd-sep', text: '日' })));
     }
     inputs[k] = input({ type: 'text', value: (profile.basics && profile.basics[k]) || '' });
     return field(label, inputs[k]);
