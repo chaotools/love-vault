@@ -1,0 +1,85 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { csrfProtect } = require('../src/auth');
+const { encryptApiKey, decryptApiKey } = require('../src/secrets');
+const { buildDataContext } = require('../src/ai');
+
+function runCsrf(headers, hostname) {
+  let nextCalled = false;
+  let statusCode = null;
+  const req = { get: (name) => headers[name.toLowerCase()], hostname };
+  const res = { status(code) { statusCode = code; return this; }, json() {} };
+  csrfProtect(req, res, () => { nextCalled = true; });
+  return { nextCalled, statusCode };
+}
+
+test('CSRF：同源放行，跨域拒绝，无 Origin 的服务端请求放行', () => {
+  assert.deepEqual(
+    runCsrf({ origin: 'https://love.example.com', host: 'love.example.com' }, 'love.example.com'),
+    { nextCalled: true, statusCode: null }
+  );
+  assert.deepEqual(
+    runCsrf({ origin: 'https://evil.example.com', host: 'love.example.com' }, 'love.example.com'),
+    { nextCalled: false, statusCode: 403 }
+  );
+  // 局域网 IP + 端口场景：只比较主机名
+  assert.deepEqual(
+    runCsrf({ origin: 'http://192.168.1.5:3000', host: '192.168.1.5:3000' }, '192.168.1.5'),
+    { nextCalled: true, statusCode: null }
+  );
+  // 无 Origin：curl / 小程序后端代理
+  assert.deepEqual(runCsrf({}, 'love.example.com'), { nextCalled: true, statusCode: null });
+  // 非法 Origin 头按拒绝处理
+  assert.deepEqual(runCsrf({ origin: 'not-a-url' }, 'love.example.com'), { nextCalled: false, statusCode: 403 });
+});
+
+test('API Key 加密落盘：设置 VAULT_ENC_KEY 时加解密往返一致', () => {
+  const prev = process.env.VAULT_ENC_KEY;
+  process.env.VAULT_ENC_KEY = 'test-secret';
+  try {
+    const enc = encryptApiKey('sk-123456');
+    assert.ok(enc.startsWith('enc:v1:'));
+    assert.ok(!enc.includes('sk-123456'));
+    assert.equal(decryptApiKey(enc), 'sk-123456');
+    // 明文与空值原样返回（兼容旧数据）
+    assert.equal(decryptApiKey('sk-plain'), 'sk-plain');
+    assert.equal(decryptApiKey(''), '');
+  } finally {
+    if (prev === undefined) delete process.env.VAULT_ENC_KEY;
+    else process.env.VAULT_ENC_KEY = prev;
+  }
+});
+
+test('未设置 VAULT_ENC_KEY 时保持明文，密钥不符时解密为空', () => {
+  const prev = process.env.VAULT_ENC_KEY;
+  process.env.VAULT_ENC_KEY = 'key-a';
+  const enc = encryptApiKey('sk-secret');
+  process.env.VAULT_ENC_KEY = 'key-b';
+  assert.equal(decryptApiKey(enc), '');
+  delete process.env.VAULT_ENC_KEY;
+  assert.equal(encryptApiKey('sk-plain'), 'sk-plain');
+  if (prev === undefined) delete process.env.VAULT_ENC_KEY;
+  else process.env.VAULT_ENC_KEY = prev;
+});
+
+test('AI 上下文默认剔除健康/生理期，显式开启后才发送', () => {
+  const base = {
+    config: { title: 't', ai: {} },
+    profile: {
+      basics: { nickname: '小可爱' },
+      health: { allergies: '花生过敏' },
+      period: { enabled: true }
+    }
+  };
+  const off = buildDataContext(base);
+  assert.ok(off.includes('小可爱'));
+  assert.ok(!off.includes('花生过敏'));
+  assert.ok(!off.includes('"period"'));
+
+  const on = buildDataContext({
+    ...base,
+    config: { title: 't', ai: { privacy: { health: true, period: true } } }
+  });
+  assert.ok(on.includes('花生过敏'));
+  assert.ok(on.includes('"period"'));
+});

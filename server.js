@@ -52,8 +52,8 @@ app.use(express.json({ limit: '4mb' }));
 
 // 认证：静态壳文件可访问，/api/auth/* 开放，其余 API 与媒体需要登录
 // 路由一律持有 store（每次请求动态读 .data）；直接传 .data 会因 load() 重赋值而失效
-app.use('/api/auth', auth.router());
-app.use('/api', auth.requireAuth, attachVault);
+app.use('/api/auth', auth.csrfProtect, auth.router());
+app.use('/api', auth.csrfProtect, auth.requireAuth, attachVault);
 
 app.use('/api/config', configRouter((req) => req.vault.config, (req) => req.vault.config.save()));
 app.use('/api/profile', content.profileRouter((req) => req.vault.profile));
@@ -77,6 +77,13 @@ app.use('/music', auth.requireAuth, attachVault, serveVaultDir('musicDir'));
 // PWA 与静态资源（协商缓存，改动即时生效）
 app.use(express.static(PUBLIC_DIR, { etag: true, lastModified: true, setHeaders: (res, p) => { if (p.endsWith('sw.js')) res.setHeader('Cache-Control', 'no-cache'); } }));
 app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html'))); // SPA 兜底
+
+// 统一错误出口：multer 文件校验失败等中间件错误也返回 JSON
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  console.error('请求处理失败:', err.message);
+  res.status(err.status || 500).json({ error: err.message });
+});
 
 // ---------- 启动 ----------
 async function init() {

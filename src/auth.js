@@ -52,6 +52,17 @@ function requireAuth(req, res, next) {
   return res.status(401).json({ error: 'unauthorized', needLogin: true });
 }
 
+// 带 Cookie 的浏览器请求必须同源；无 Origin 的请求（curl、小程序后端代理）不受影响。
+// 服务令牌路径本身不受 CSRF 影响（攻击者无法跨域携带自定义头）。
+function csrfProtect(req, res, next) {
+  const origin = req.get('Origin');
+  if (!origin) return next();
+  try {
+    if (new URL(origin).hostname === req.hostname) return next();
+  } catch (e) { /* 非法 Origin 头按拒绝处理 */ }
+  return res.status(403).json({ error: 'cross-origin request rejected' });
+}
+
 function router() {
   const r = express.Router();
   r.get('/status', (req, res) => res.json({
@@ -98,4 +109,4 @@ function router() {
   return r;
 }
 
-module.exports = { requireAuth, router, readSession, serviceMatches, authConfigured, LOCAL_USER_ID, COOKIE, SERVICE_TOKEN_HEADER, USER_HEADER };
+module.exports = { requireAuth, router, readSession, serviceMatches, authConfigured, csrfProtect, LOCAL_USER_ID, COOKIE, SERVICE_TOKEN_HEADER, USER_HEADER };

@@ -105,6 +105,9 @@ function profileRouter(store) {
 }
 
 // ---------- 照片/视频 ----------
+// 上传白名单：只接收浏览器可直接展示/转码的媒体格式（svg 可携带脚本，明确拒绝）
+const ALLOWED_UPLOAD_EXT = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif', 'mp4', 'mov', 'm4v', 'webm', 'mkv', 'avi', 'mts', 'm2ts', '3gp']);
+
 function memoriesRouter(collection) {
   const r = express.Router();
   const resolve = (req) => typeof collection === 'function' ? collection(req) : collection;
@@ -147,7 +150,22 @@ function memoriesRouter(collection) {
       cb(null, crypto.randomUUID() + ext);
     }
   });
-  const upload = multer({ storage, limits: { fileSize: 1024 * 1024 * 1024 } });
+  const upload = multer({
+    storage,
+    limits: { fileSize: 1024 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      const ext = media.extOf(file.originalname);
+      const mime = String(file.mimetype || '');
+      // 部分设备上报 application/octet-stream 或空 MIME，允许；其余必须与扩展名同为 image/video 族
+      const mimeOk = /^(image|video)\//.test(mime) || mime === 'application/octet-stream' || !mime;
+      if (!ALLOWED_UPLOAD_EXT.has(ext) || !mimeOk) {
+        const err = new Error(`不支持的文件类型: ${ext || '未知'}`);
+        err.status = 400;
+        return cb(err);
+      }
+      cb(null, true);
+    }
+  });
 
   r.get('/', async (req, res) => {
     const items = resolve(req).list()
@@ -186,6 +204,7 @@ function memoriesRouter(collection) {
       res.json({ ok: true, items: results });
     } catch (e) {
       console.error('上传处理失败:', e);
+      await removeUploadedFiles(files).catch(() => {});
       res.status(500).json({ ok: false, error: e.message });
     }
   });

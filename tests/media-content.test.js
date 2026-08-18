@@ -24,6 +24,7 @@ function appFor(collection, vault) {
   const app = express();
   app.use((req, res, next) => { req.vault = vault; next(); });
   app.use('/', content.memoriesRouter(() => collection).router);
+  app.use((err, req, res, next) => { res.status(err.status || 400).json({ error: err.message }); });
   return app;
 }
 
@@ -65,6 +66,43 @@ test('手动拍摄时间优先于文件元数据和上传时间', async () => {
     const chosen = '2019-05-06T07:08:09.000Z';
     const item = await media.indexFile(file, 'photo.png', 'photo', { thumbDir, takenAt: chosen });
     assert.equal(item.takenAt, chosen);
+  } finally {
+    await fsp.rm(root, { recursive: true, force: true });
+  }
+});
+
+test('上传白名单：拒绝非媒体文件，接受图片', async () => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'love-vault-upload-'));
+  try {
+    const vault = { mediaDir: path.join(root, 'media'), thumbDir: path.join(root, 'thumbs') };
+    await fsp.mkdir(vault.mediaDir, { recursive: true });
+    await fsp.mkdir(vault.thumbDir, { recursive: true });
+    const items = [];
+    const collection = {
+      list: () => items,
+      add: async (m) => { items.push(m); return m; },
+      get: () => null,
+      update: async () => {},
+      remove: async () => {}
+    };
+
+    await withApp(appFor(collection, vault), async (origin) => {
+      const bad = new FormData();
+      bad.append('files', new Blob(['#!/bin/sh'], { type: 'text/plain' }), 'evil.sh');
+      const badRes = await fetch(origin + '/upload', { method: 'POST', body: bad });
+      assert.equal(badRes.status, 400);
+      const badBody = await badRes.json();
+      assert.match(badBody.error, /不支持的文件类型/);
+
+      const pngBuf = await sharp({ create: { width: 2, height: 2, channels: 3, background: '#e87b8e' } }).png().toBuffer();
+      const good = new FormData();
+      good.append('files', new Blob([pngBuf], { type: 'image/png' }), 'photo.png');
+      const goodRes = await fetch(origin + '/upload', { method: 'POST', body: good });
+      assert.equal(goodRes.status, 200);
+      const goodBody = await goodRes.json();
+      assert.equal(goodBody.items.length, 1);
+      assert.equal(goodBody.items[0].type, 'photo');
+    });
   } finally {
     await fsp.rm(root, { recursive: true, force: true });
   }

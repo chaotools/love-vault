@@ -79,6 +79,7 @@ pm2 save && pm2 startup
 | `WEB_SESSION_SECRET` | - | 用于签发网页扫码登录会话的高强度密钥；生产环境必须设置 |
 | `AUTH_BROKER_URL` | - | 小程序后端的 Love Vault 登录桥接地址；网页扫码登录需要它 |
 | `LEGACY_USER_ID` | - | 可选。将旧版 `data/` 根目录数据迁移至指定 UUID 用户目录；迁移可恢复且不会覆盖已有文件 |
+| `VAULT_ENC_KEY` | - | 可选。设置后网页保存的 AI API Key 以 AES-256-GCM 加密落盘（`enc:v1:` 前缀）；未设置时保持明文，兼容旧数据 |
 
 ### 小程序接入
 
@@ -96,6 +97,13 @@ pm2 save && pm2 startup
 3. **上 HTTPS**：公网部署必须套一层反向代理。Nginx 示例配置见 [deploy/love.chaotools.tech.conf](deploy/love.chaotools.tech.conf)；反向代理部署时设 `TRUST_PROXY=1`，让登录 Cookie 保持 `Secure`。
 
 未登录访问网页 API 或媒体将返回 `401`；持有服务令牌但缺少合法内部 UUID 的请求同样会被拒绝。
+
+其他加固：
+
+- **CSRF**：带 `Origin` 的浏览器请求必须同源（对比 `Origin` 与 `Host`），跨域写操作返回 `403`；无 `Origin` 的服务端代理请求不受影响
+- **AI 隐私**：健康/生理期数据默认不发送给第三方大模型，可在 ⚙ 设置 → AI 隐私中显式开启
+- **上传校验**：只接受图片/视频格式白名单（含 HEIC），拒绝可执行文件、SVG 等危险类型
+- **写时备份**：每个 JSON 文件写入前保留上一版为同名 `.bak`，误删误改可回滚
 
 ## 备份与搬家
 

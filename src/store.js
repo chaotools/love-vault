@@ -23,8 +23,11 @@ class JsonStore {
 
   async save() {
     const tmp = this.file + '.tmp';
+    const bak = this.file + '.bak';
     await fsp.mkdir(path.dirname(this.file), { recursive: true });
     await fsp.writeFile(tmp, JSON.stringify(this.data, null, 2), 'utf8');
+    // 保留上一版：误删/误改时可回滚；首次写入没有旧文件，忽略失败
+    await fsp.copyFile(this.file, bak).catch(() => {});
     await fsp.rename(tmp, this.file);
   }
 }

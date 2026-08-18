@@ -351,6 +351,9 @@ async function openSettings() {
   const sModel = input({ type: 'text', value: ai.model || '', list: 'modelList', placeholder: '模型名' });
   const modelList = el('datalist', { id: 'modelList' });
   const sApiKey = input({ type: 'password', value: '', placeholder: aiStatus.fromEnv ? '已用环境变量配置，留空即可' : (ai.hasApiKey ? '已保存，留空则不修改' : 'API Key') });
+  const privacy = ai.privacy || {};
+  const sAiHealth = input({ type: 'checkbox', checked: privacy.health === true });
+  const sAiPeriod = input({ type: 'checkbox', checked: privacy.period === true });
   const aiStatusLine = el('div', { class: 'ai-status-line', text: aiStatus.configured ? `当前可用：${aiStatus.provider} · ${aiStatus.model}` : '尚未配置' });
 
   const refreshModels = () => {
@@ -366,7 +369,7 @@ async function openSettings() {
     class: 'ghost-btn', text: '测试连接', onclick: async (e) => {
       // 先保存当前填写的 AI 配置再测试
       try {
-        await post('/api/config', { ai: { provider: sProvider.value, baseUrl: sBaseUrl.value.trim(), apiKey: sApiKey.value.trim(), model: sModel.value.trim() } });
+        await post('/api/config', { ai: { provider: sProvider.value, baseUrl: sBaseUrl.value.trim(), apiKey: sApiKey.value.trim(), model: sModel.value.trim(), privacy: { health: sAiHealth.checked, period: sAiPeriod.checked } } });
         const r = await post('/api/ask/test', {});
         aiStatusLine.textContent = `✓ ${r.provider} · ${r.model}：${r.reply}`;
         aiStatusLine.className = 'ai-status-line ok';
@@ -392,6 +395,11 @@ async function openSettings() {
         field('供应商', sProvider), field('接口地址', sBaseUrl),
         field('模型', el('span', null, sModel, modelList)),
         field('API Key', sApiKey),
+        el('div', { class: 'settings-section' },
+          el('h4', { text: 'AI 隐私（发给第三方模型的数据）' }),
+          field('允许读取健康信息（过敏/用药）', sAiHealth),
+          field('允许读取生理期信息', sAiPeriod)
+        ),
         el('div', { class: 'modal-foot', style: 'justify-content:flex-start;margin-top:4px' }, testAi, aiStatusLine)
       )
     ),
@@ -405,7 +413,7 @@ async function openSettings() {
                 title: sTitle.value.trim(), names: sNames.value.trim(), anniversary: sAnn.value,
                 music: sMusic.value.trim(), periodEnabled: sPeriod.value === 'true',
                 memorialDays: days.filter((d) => d.name && d.date),
-                ai: { provider: sProvider.value, baseUrl: sBaseUrl.value.trim(), apiKey: sApiKey.value.trim(), model: sModel.value.trim() }
+                ai: { provider: sProvider.value, baseUrl: sBaseUrl.value.trim(), apiKey: sApiKey.value.trim(), model: sModel.value.trim(), privacy: { health: sAiHealth.checked, period: sAiPeriod.checked } }
               });
               store.set('config', saved);
               store.set('ai', await get('/api/ask/status'));
