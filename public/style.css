@@ -282,6 +282,11 @@ body::before {
 }
 .card:hover { transform: translateY(-5px) scale(1.01); box-shadow: var(--shadow-card-hover); }
 .card img { width: 100%; display: block; transition: transform .5s ease; }
+.media-placeholder {
+  display: grid; place-items: center; background: linear-gradient(145deg, var(--rose-soft), var(--blush));
+  color: var(--rose-dark); border-radius: 10px; min-height: 72px; font-size: 26px;
+}
+.card > .media-placeholder { width: 100%; aspect-ratio: 4 / 3; border-radius: var(--radius) var(--radius) 0 0; }
 .card:hover img { transform: scale(1.03); }
 .card figcaption {
   position: absolute; left: 0; right: 0; bottom: 0; padding: 30px 14px 10px;
@@ -481,6 +486,16 @@ body::before {
 .dz-icon { font-size: 40px; margin-bottom: 12px; }
 .dropzone p { font-size: 15px; font-weight: 500; }
 .dropzone .sub { font-size: 12px; margin-top: 8px; opacity: .65; font-weight: 400; }
+.upload-files { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; max-height: 320px; overflow-y: auto; }
+.upload-file-row { display: flex; gap: 12px; padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
+.upload-file-preview, .upload-file-placeholder { width: 76px; height: 76px; flex-shrink: 0; object-fit: cover; border-radius: 9px; }
+.upload-file-placeholder { display: grid; place-items: center; background: var(--rose-soft); font-size: 26px; }
+.upload-file-meta { min-width: 0; flex: 1; }
+.upload-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.upload-file-type { font-size: 11px; color: var(--muted); margin: 2px 0 6px; }
+.upload-date-label { display: grid; gap: 3px; font-size: 11px; color: var(--muted); }
+.upload-date-label input { min-width: 0; padding: 7px 9px !important; font-size: 12px !important; }
+.upload-date-label small { font-size: 10px; line-height: 1.35; color: var(--muted); }
 .progress { margin-top: 18px; display: flex; align-items: center; gap: 12px; }
 .progress .bar { flex: 1; height: 6px; background: var(--rose-soft); border-radius: var(--radius-full); overflow: hidden; }
 .progress .bar-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--rose), var(--rose-deep)); border-radius: var(--radius-full); transition: width .3s; }
@@ -604,7 +619,8 @@ body::before {
   width: 74px; height: 74px; object-fit: cover; border-radius: 10px; cursor: pointer;
   transition: transform .2s; box-shadow: var(--shadow-sm);
 }
-.vtl-media img:hover { transform: scale(1.06); }
+.vtl-media .media-placeholder { width: 74px; height: 74px; min-height: 74px; cursor: pointer; box-shadow: var(--shadow-sm); }
+.vtl-media img:hover, .vtl-media .media-placeholder:hover { transform: scale(1.06); }
 .vtl-actions { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
 .promise-check {
   display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
@@ -623,7 +639,8 @@ body::before {
   width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; cursor: pointer;
   opacity: .55; transition: all .15s; border: 2px solid transparent;
 }
-.media-picker img.sel { opacity: 1; border-color: var(--rose); box-shadow: 0 0 0 2px var(--rose-glow); }
+.media-picker .media-placeholder { width: 100%; aspect-ratio: 1; min-height: 0; cursor: pointer; opacity: .55; border: 2px solid transparent; }
+.media-picker img.sel, .media-picker .media-placeholder.sel { opacity: 1; border-color: var(--rose); box-shadow: 0 0 0 2px var(--rose-glow); }
 
 /* ===== 愿望 & 礼物页 ===== */
 .wish-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }

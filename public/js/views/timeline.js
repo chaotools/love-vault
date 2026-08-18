@@ -1,5 +1,5 @@
 // 时间轴视图：照片 + 视频 + 文字大事记 按月混排
-import { el, get, post, patch, del, toast, openModal, openLightbox, field, input, textarea, select, fmtDate, fmtDay, fmtDuration, toLocalInput, emptyState } from '../core.js';
+import { el, get, post, patch, del, toast, openModal, openLightbox, field, input, textarea, select, fmtDate, fmtDay, fmtDuration, toLocalInput, emptyState, mediaPreview } from '../core.js';
 
 let memories = [];
 let events = [];
@@ -115,7 +115,7 @@ function buildList() {
 function mediaCard(m) {
   const d = new Date(m.takenAt);
   const cap = el('figcaption', { text: `${d.getMonth() + 1}月${d.getDate()}日` + (m.note ? ` · ${m.note}` : '') + (m.location ? ` · 📍${m.location}` : '') });
-  const children = [el('img', { src: m.thumb, loading: 'lazy', alt: m.note || '' })];
+  const children = [mediaPreview(m, { loading: 'lazy', alt: m.note || '' })];
   if (m.type === 'video') {
     children.push(el('div', { class: 'video-badge', text: '▶ ' + fmtDuration(m.duration) }));
     children.push(el('div', { class: 'play-icon', text: '▶' }));
@@ -138,7 +138,7 @@ function editMemory(m) {
   const lInput = input({ type: 'text', value: m.location || '', placeholder: '比如：厦门 · 鼓浪屿' });
   const md = openModal({
     title: '编辑记忆', content: el('div', null,
-      field('时间', dInput), field('备注', nInput), field('标签（逗号分隔）', tInput), field('地点', lInput)),
+      field('拍摄时间', dInput), field('备注', nInput), field('标签（逗号分隔）', tInput), field('地点', lInput)),
     buttons: [
       { el: el('button', { class: 'ghost-btn', text: '取消', onclick: () => md.close() }) },
       { el: el('button', { class: 'primary-btn', text: '保存', onclick: async () => {
@@ -193,7 +193,11 @@ function eventCard(e) {
 function showEvent(e) {
   const linked = memories.filter((m) => (e.mediaIds || []).includes(m.id));
   const mediaStrip = linked.length ? el('div', { class: 'vtl-media' },
-    ...linked.map((m) => el('img', { src: m.thumb, onclick: (ev) => { ev.stopPropagation(); openLightbox(linked, linked.indexOf(m)); } }))) : null;
+    ...linked.map((m) => {
+      const preview = mediaPreview(m);
+      preview.addEventListener('click', (ev) => { ev.stopPropagation(); openLightbox(linked, linked.indexOf(m)); });
+      return preview;
+    })) : null;
   const md = openModal({
     title: e.title,
     content: el('div', null,
@@ -216,28 +220,81 @@ function openUpload() {
   const dz = el('div', { class: 'dropzone' },
     el('div', { class: 'dz-icon', text: '📷' }),
     el('p', { text: '拖拽照片 / 视频到这里' }),
-    el('p', { class: 'sub', text: '或点击选择文件 · 支持多选 · HEIC 自动转换 · 按拍摄时间排序' }));
+    el('p', { class: 'sub', text: '或点击选择文件 · 支持多选 · 可逐张填写实际拍摄时间' }));
   const fi = input({ type: 'file', multiple: true, accept: 'image/*,video/*', hidden: true });
   dz.append(fi);
+  const filesEl = el('div', { class: 'upload-files', hidden: true });
   const progress = el('div', { class: 'progress', hidden: true },
     el('div', { class: 'bar' }, el('div', { class: 'bar-fill', id: 'barFill' })),
     el('span', { id: 'progressText', text: '0%' }));
 
+  let pending = [];
+  let objectUrls = [];
+  let uploading = false;
+  const uploadBtn = el('button', { class: 'primary-btn', text: '开始上传', disabled: true });
+  const clearPreviews = () => {
+    objectUrls.forEach((url) => URL.revokeObjectURL(url));
+    objectUrls = [];
+  };
+  const localPreview = (file) => {
+    if (file.type.startsWith('image/') && !/heic|heif/i.test(file.type)) {
+      const url = URL.createObjectURL(file);
+      objectUrls.push(url);
+      return el('img', { class: 'upload-file-preview', src: url, alt: file.name });
+    }
+    return el('div', { class: 'upload-file-placeholder', text: file.type.startsWith('video/') ? '🎬' : '🖼️' });
+  };
+  const chooseFiles = (fileList) => {
+    clearPreviews();
+    pending = Array.from(fileList).map((file) => ({ file, date: input({ type: 'datetime-local', step: '60' }) }));
+    filesEl.innerHTML = '';
+    filesEl.hidden = pending.length === 0;
+    for (const item of pending) {
+      const type = item.file.type || '未知格式';
+      filesEl.append(el('div', { class: 'upload-file-row' },
+        localPreview(item.file),
+        el('div', { class: 'upload-file-meta' },
+          el('div', { class: 'upload-file-name', text: item.file.name }),
+          el('div', { class: 'upload-file-type', text: `${type} · ${Math.max(1, Math.round(item.file.size / 1024))} KB` }),
+          el('label', { class: 'upload-date-label' },
+            el('span', { text: '实际拍摄时间（可选）' }),
+            item.date,
+            el('small', { text: '留空时自动读取照片元数据；无法读取才使用上传时间' })))));
+    }
+    uploadBtn.disabled = pending.length === 0;
+    uploadBtn.textContent = pending.length ? `上传 ${pending.length} 个文件` : '开始上传';
+  };
+
   const md = openModal({
     title: '上传记忆',
-    content: el('div', null, dz, progress),
-    buttons: [{ el: el('button', { class: 'ghost-btn', text: '关闭', onclick: () => md.close() }) }]
+    content: el('div', null, dz, filesEl, progress),
+    onClose: clearPreviews,
+    buttons: [
+      { el: el('button', { class: 'ghost-btn', text: '关闭', onclick: () => md.close() }) },
+      { el: uploadBtn }
+    ]
   });
 
-  dz.addEventListener('click', () => fi.click());
-  fi.addEventListener('change', () => { if (fi.files.length) uploadFiles(fi.files); });
+  dz.addEventListener('click', () => { if (!uploading) fi.click(); });
+  fi.addEventListener('change', () => {
+    if (fi.files.length) chooseFiles(fi.files);
+    fi.value = '';
+  });
   ['dragover', 'dragenter'].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add('drag'); }));
   ['dragleave', 'drop'].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove('drag'); }));
-  dz.addEventListener('drop', (e) => { if (e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files); });
+  dz.addEventListener('drop', (e) => { if (!uploading && e.dataTransfer.files.length) chooseFiles(e.dataTransfer.files); });
+  uploadBtn.addEventListener('click', () => uploadFiles());
 
-  function uploadFiles(files) {
+  function uploadFiles() {
+    if (!pending.length || uploading) return;
+    uploading = true;
+    uploadBtn.disabled = true;
+    uploadBtn.textContent = '上传中…';
     const fd = new FormData();
-    for (const f of files) fd.append('files', f);
+    for (const item of pending) {
+      fd.append('files', item.file);
+      fd.append('takenAt', item.date.value ? new Date(item.date.value).toISOString() : '');
+    }
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/memories/upload');
     progress.hidden = false;
@@ -256,13 +313,25 @@ function openUpload() {
         build(); renderFAB();
         document.getElementById('progressText').textContent = '完成 ✓';
         toast(`上传了 ${data.items.length} 段记忆 💕`);
+        pending = [];
+        clearPreviews();
         setTimeout(() => md.close(), 700);
       } else {
+        uploading = false;
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = pending.length ? `上传 ${pending.length} 个文件` : '开始上传';
         document.getElementById('progressText').textContent = '失败';
-        toast('上传失败：' + (JSON.parse(xhr.responseText).error || '未知错误'), 'err');
+        const body = JSON.parse(xhr.responseText || '{}');
+        toast('上传失败：' + (body.error || '未知错误'), 'err');
       }
     };
-    xhr.onerror = () => { document.getElementById('progressText').textContent = '失败'; toast('网络错误', 'err'); };
+    xhr.onerror = () => {
+      uploading = false;
+      uploadBtn.disabled = false;
+      uploadBtn.textContent = pending.length ? `上传 ${pending.length} 个文件` : '开始上传';
+      document.getElementById('progressText').textContent = '失败';
+      toast('网络错误', 'err');
+    };
     xhr.send(fd);
   }
   function renderFAB() { /* FAB 在 build() 里已重建 */ }

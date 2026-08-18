@@ -17,6 +17,32 @@ export function el(tag, attrs = {}, ...children) {
   return node;
 }
 
+// 媒体预览：照片可在缩略图缺失时回退原图；视频绝不把视频 URL 交给 <img>。
+export function mediaPreview(media, { className = '', title = '', alt = '', loading = '' } = {}) {
+  const placeholder = () => el('div', {
+    class: `media-placeholder ${media.type === 'video' ? 'media-video' : 'media-photo'} ${className}`.trim(),
+    title
+  }, el('span', { text: media.type === 'video' ? '🎬' : '🖼️' }));
+
+  const image = (src) => {
+    const img = el('img', { src, class: className, title, alt, ...(loading ? { loading } : {}) });
+    let triedOriginal = src === media.url;
+    img.addEventListener('error', () => {
+      if (!triedOriginal && media.type !== 'video' && media.url && img.getAttribute('src') !== media.url) {
+        triedOriginal = true;
+        img.setAttribute('src', media.url);
+        return;
+      }
+      img.replaceWith(placeholder());
+    });
+    return img;
+  };
+
+  if (media.thumb) return image(media.thumb);
+  if (media.type !== 'video' && media.url) return image(media.url);
+  return placeholder();
+}
+
 export const pad = (n) => String(n).padStart(2, '0');
 export const fmtDate = (iso) => {
   if (!iso) return '';

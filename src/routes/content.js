@@ -109,6 +109,37 @@ function memoriesRouter(collection) {
   const r = express.Router();
   const resolve = (req) => typeof collection === 'function' ? collection(req) : collection;
 
+  const publicMem = async (req, m) => {
+    const url = '/media/' + encodeURIComponent(m.filename);
+    const thumbPath = path.join(req.vault.thumbDir, m.id + '.jpg');
+    let thumb = null;
+    try {
+      await fsp.access(thumbPath);
+      thumb = '/thumbs/' + encodeURIComponent(m.id) + '.jpg';
+    } catch (e) {
+      // 照片没有缩略图时可安全使用原图；视频不能作为 <img> 的回退来源。
+      if (m.type !== 'video') thumb = url;
+    }
+    return { ...m, url, thumb };
+  };
+
+  const uploadTakenAts = (body, count) => {
+    const raw = body && body.takenAt;
+    if (raw == null) return Array(count).fill(null);
+    const values = Array.isArray(raw) ? raw : [raw];
+    if (values.length !== count) throw new Error('每个文件都需要对应一个拍摄时间字段');
+    return values.map((value, index) => {
+      if (!value) return null;
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) throw new Error(`第 ${index + 1} 个文件的拍摄时间无效`);
+      return date.toISOString();
+    });
+  };
+
+  const removeUploadedFiles = async (files) => {
+    await Promise.all((files || []).map((file) => fsp.unlink(file.path).catch(() => {})));
+  };
+
   const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, req.vault.mediaDir),
     filename: (req, file, cb) => {
@@ -118,22 +149,26 @@ function memoriesRouter(collection) {
   });
   const upload = multer({ storage, limits: { fileSize: 1024 * 1024 * 1024 } });
 
-  const publicMem = (m) => ({
-    ...m,
-    url: '/media/' + encodeURIComponent(m.filename),
-    thumb: '/thumbs/' + encodeURIComponent(m.id) + '.jpg'
-  });
-
-  r.get('/', (req, res) => {
-    res.json(resolve(req).list()
+  r.get('/', async (req, res) => {
+    const items = resolve(req).list()
       .slice()
-      .sort((a, b) => (b.takenAt || '').localeCompare(a.takenAt || '')));
+      .sort((a, b) => (b.takenAt || '').localeCompare(a.takenAt || ''));
+    res.json(await Promise.all(items.map((m) => publicMem(req, m))));
   });
 
   r.post('/upload', upload.array('files'), async (req, res) => {
     const results = [];
+    const files = req.files || [];
+    let takenAts;
     try {
-      for (const file of req.files || []) {
+      // 在处理任何文件前验证所有手动日期，避免日期错误导致部分上传。
+      takenAts = uploadTakenAts(req.body, files.length);
+    } catch (e) {
+      await removeUploadedFiles(files);
+      return res.status(400).json({ ok: false, error: e.message });
+    }
+    try {
+      for (const [index, file] of files.entries()) {
         let filename = file.filename;
         let fullPath = file.path;
         if (media.HEIC_EXT.has(media.extOf(file.originalname))) {
@@ -141,9 +176,12 @@ function memoriesRouter(collection) {
           filename = conv.filename; fullPath = conv.fullPath;
         }
         const id = filename.replace(/\.[^.]+$/, '');
-        const mem = await media.indexFile(fullPath, filename, id, { thumbDir: req.vault.thumbDir });
-        await resolve(req).add(mem); // add 会补 id/createdAt，用 mem 覆盖
-        results.push(publicMem(mem));
+        const mem = await media.indexFile(fullPath, filename, id, {
+          thumbDir: req.vault.thumbDir,
+          takenAt: takenAts[index]
+        });
+        const saved = await resolve(req).add(mem);
+        results.push(await publicMem(req, saved));
       }
       res.json({ ok: true, items: results });
     } catch (e) {
@@ -162,7 +200,7 @@ function memoriesRouter(collection) {
     if (Array.isArray(b.tags)) mem.tags = b.tags.filter((t) => typeof t === 'string' && t.trim()).map((t) => t.trim());
     if (typeof b.takenAt === 'string' && b.takenAt) mem.takenAt = new Date(b.takenAt).toISOString();
     await resolve(req).update(mem.id, {});
-    res.json(publicMem(mem));
+    res.json(await publicMem(req, mem));
   });
 
   r.delete('/:id', async (req, res) => {

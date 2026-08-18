@@ -159,12 +159,14 @@ async function indexFile(fullPath, filename, id, dirs = {}) {
   };
   const thumbPath = path.join(dirs.thumbDir || THUMB_DIR, id + '.jpg');
 
+  const takenAtOverride = dirs.takenAt || null;
+
   if (isVideo) {
-    mem.takenAt = (await readVideoDate(fullPath)) || stat.mtime.toISOString();
+    mem.takenAt = takenAtOverride || (await readVideoDate(fullPath)) || stat.mtime.toISOString();
     try { const info = await probeVideo(fullPath); mem.width = info.width; mem.height = info.height; mem.duration = info.duration; } catch (e) { /* ignore */ }
     try { await generateVideoCover(fullPath, thumbPath, mem.duration); } catch (e) { console.error('视频封面生成失败:', e.message); }
   } else {
-    mem.takenAt = (await readImageDate(fullPath)) || stat.mtime.toISOString();
+    mem.takenAt = takenAtOverride || (await readImageDate(fullPath)) || stat.mtime.toISOString();
     try { const m = await sharp(fullPath).metadata(); mem.width = m.width; mem.height = m.height; } catch (e) { /* ignore */ }
     try { await generateImageThumb(fullPath, thumbPath); } catch (e) { console.error('缩略图生成失败:', e.message); }
   }
