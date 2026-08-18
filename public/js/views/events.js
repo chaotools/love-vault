@@ -108,7 +108,7 @@ function promiseCheck(e) {
 function editEvent(e) {
   const date = input({ type: 'datetime-local', value: e ? toLocalInput(e.date) : toLocalInput(new Date().toISOString()) });
   const title = input({ type: 'text', value: e ? e.title : '', placeholder: '比如：第一次一起看海' });
-  const type = select(TYPES.map((t) => [t, (TYPE_ICON[t] || '') + ' ' + t]), e ? e.type : '里程碑');
+  const type = select(TYPES.map((t) => [t, (TYPE_ICON[t] || '') + ' ' + t]), e ? e.type : (filterType !== 'all' ? filterType : '里程碑'));
   const location = input({ type: 'text', value: e ? e.location : '', placeholder: '地点（可空）' });
   const desc = textarea({ placeholder: '发生了什么、TA说了什么、你的感受…（可空）' }, e ? e.description : '');
 

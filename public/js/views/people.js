@@ -86,7 +86,7 @@ function buildGrid() {
 function editPerson(p) {
   const name = input({ type: 'text', value: p ? p.name : '', placeholder: '怎么称呼' });
   const relation = input({ type: 'text', value: p ? p.relation : '', placeholder: '和TA的关系，如：妈妈 / 大学室友' });
-  const group = select(GROUPS.map((g) => [g, g]), p ? p.group : '朋友');
+  const group = select(GROUPS.map((g) => [g, g]), p ? p.group : (filterGroup !== 'all' ? filterGroup : '朋友'));
   const birthday = input({ type: 'text', value: p ? p.birthday : '', placeholder: '03-14 或 1998-03-14' });
   const howMet = input({ type: 'text', value: p ? p.howMet : '', placeholder: '怎么认识/交集，如：TA的高中同桌' });
   const notes = textarea({ placeholder: 'TA提过的八卦、喜好、要注意的点…（可空）' }, p ? p.notes : '');

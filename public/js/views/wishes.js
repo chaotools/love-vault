@@ -138,7 +138,7 @@ async function cycleStatus(w) {
 
 function editWish(w) {
   const title = input({ type: 'text', value: w ? w.title : '', placeholder: 'TA想要什么，如：一台胶片相机' });
-  const status = select(STATUSES.map((s) => [s, s]), w ? w.status : '想要');
+  const status = select(STATUSES.map((s) => [s, s]), w ? w.status : (filterStatus !== 'all' ? filterStatus : '想要'));
   const priority = select(PRIORITIES.map((p) => [p, p === '高' ? '高（近期就想送）' : p]), w ? w.priority : '中');
   const source = input({ type: 'text', value: w ? w.source : '', placeholder: 'TA随口说的 / 逛街时盯了三秒 / 生日提过' });
   const note = textarea({ placeholder: '型号、颜色、尺寸、在哪买…（可空）' }, w ? w.note : '');
