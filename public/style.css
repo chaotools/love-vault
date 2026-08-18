@@ -455,6 +455,9 @@ body::before {
 .modal-card input:focus, .modal-card select:focus, .modal-card textarea:focus {
   border-color: var(--rose); box-shadow: 0 0 0 3px var(--rose-glow); background: #fff;
 }
+.modal-card .birthday-selects { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.modal-card .birthday-selects select { width: auto; min-width: 84px; flex: 0 1 auto; }
+.modal-card .birthday-selects .bd-sep { color: var(--muted); font-size: 13px; }
 .modal-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
 
 /* Toast */
