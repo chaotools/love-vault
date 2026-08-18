@@ -158,16 +158,21 @@ async function indexFile(fullPath, filename, id, dirs = {}) {
     uploadedAt: new Date().toISOString()
   };
   const thumbPath = path.join(dirs.thumbDir || THUMB_DIR, id + '.jpg');
+  let hasThumb = false;
 
   if (isVideo) {
     mem.takenAt = (await readVideoDate(fullPath)) || stat.mtime.toISOString();
     try { const info = await probeVideo(fullPath); mem.width = info.width; mem.height = info.height; mem.duration = info.duration; } catch (e) { /* ignore */ }
-    try { await generateVideoCover(fullPath, thumbPath, mem.duration); } catch (e) { console.error('视频封面生成失败:', e.message); }
+    try { await generateVideoCover(fullPath, thumbPath, mem.duration); hasThumb = true; } catch (e) { console.error('视频封面生成失败:', e.message); }
   } else {
     mem.takenAt = (await readImageDate(fullPath)) || stat.mtime.toISOString();
     try { const m = await sharp(fullPath).metadata(); mem.width = m.width; mem.height = m.height; } catch (e) { /* ignore */ }
-    try { await generateImageThumb(fullPath, thumbPath); } catch (e) { console.error('缩略图生成失败:', e.message); }
+    try { await generateImageThumb(fullPath, thumbPath); hasThumb = true; } catch (e) { console.error('缩略图生成失败:', e.message); }
   }
+  // 生成失败（如 Docker slim 缺系统库导致 sharp/ffmpeg 失败）时，hasThumb 为 false，
+  // 由 publicMem 回退到原图，避免前端拿到一个不存在的 /thumbs/<id>.jpg 而裂图
+  try { hasThumb = hasThumb && (await fsp.stat(thumbPath)).isFile(); } catch (e) { hasThumb = false; }
+  mem.hasThumb = hasThumb;
   return mem;
 }
 

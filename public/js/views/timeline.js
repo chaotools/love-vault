@@ -116,6 +116,7 @@ function mediaCard(m) {
   const d = new Date(m.takenAt);
   const cap = el('figcaption', { text: `${d.getMonth() + 1}月${d.getDate()}日` + (m.note ? ` · ${m.note}` : '') + (m.location ? ` · 📍${m.location}` : '') });
   const children = [el('img', { src: m.thumb, loading: 'lazy', alt: m.note || '' })];
+  children[0].onerror = () => { if (children[0].src !== m.url) children[0].src = m.url; };
   if (m.type === 'video') {
     children.push(el('div', { class: 'video-badge', text: '▶ ' + fmtDuration(m.duration) }));
     children.push(el('div', { class: 'play-icon', text: '▶' }));
@@ -193,7 +194,11 @@ function eventCard(e) {
 function showEvent(e) {
   const linked = memories.filter((m) => (e.mediaIds || []).includes(m.id));
   const mediaStrip = linked.length ? el('div', { class: 'vtl-media' },
-    ...linked.map((m) => el('img', { src: m.thumb, onclick: (ev) => { ev.stopPropagation(); openLightbox(linked, linked.indexOf(m)); } }))) : null;
+    ...linked.map((m) => {
+      const img = el('img', { src: m.thumb, onclick: (ev) => { ev.stopPropagation(); openLightbox(linked, linked.indexOf(m)); } });
+      img.onerror = () => { if (img.src !== m.url) img.src = m.url; };
+      return img;
+    })) : null;
   const md = openModal({
     title: e.title,
     content: el('div', null,

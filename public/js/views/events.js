@@ -71,7 +71,12 @@ function buildList() {
         el('div', { class: 'vtl-title', text: e.title }),
         e.description ? el('div', { class: 'vtl-desc', text: e.description }) : null,
         linked.length ? el('div', { class: 'vtl-media' },
-          ...linked.map((m) => el('img', { src: m.thumb, title: m.note || '', onclick: () => openLightbox(linked, linked.indexOf(m)) }))) : null,
+          ...linked.map((m) => {
+            const img = el('img', { src: m.thumb, title: m.note || '', onclick: () => openLightbox(linked, linked.indexOf(m)) });
+            // 缩略图若加载失败，回退到原图，避免裂图
+            img.onerror = () => { if (img.src !== m.url) img.src = m.url; };
+            return img;
+          })) : null,
         el('div', { class: 'vtl-actions' },
           isPromise ? promiseCheck(e) : null,
           el('button', { class: 'ghost-btn', style: 'padding:5px 14px;font-size:12px', text: '编辑', onclick: () => editEvent(e) }),
@@ -119,6 +124,7 @@ function editEvent(e) {
     }
     for (const m of memories.slice(0, 60)) {
       const img = el('img', { src: m.thumb, class: selected.has(m.id) ? 'sel' : '', title: m.note || '' });
+      img.onerror = () => { if (img.src !== m.url) img.src = m.url; };
       img.addEventListener('click', () => {
         if (selected.has(m.id)) selected.delete(m.id); else selected.add(m.id);
         img.classList.toggle('sel');

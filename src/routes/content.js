@@ -118,11 +118,13 @@ function memoriesRouter(collection) {
   });
   const upload = multer({ storage, limits: { fileSize: 1024 * 1024 * 1024 } });
 
-  const publicMem = (m) => ({
-    ...m,
-    url: '/media/' + encodeURIComponent(m.filename),
-    thumb: '/thumbs/' + encodeURIComponent(m.id) + '.jpg'
-  });
+  const publicMem = (m) => {
+    const url = '/media/' + encodeURIComponent(m.filename);
+    // 缩略图仅在确实生成成功时返回；否则直接回退到原图，
+    // 避免前端引用一个不存在的 /thumbs/<id>.jpg 而显示裂图
+    const thumb = m.hasThumb ? '/thumbs/' + encodeURIComponent(m.id) + '.jpg' : url;
+    return { ...m, url, thumb };
+  };
 
   r.get('/', (req, res) => {
     res.json(resolve(req).list()
