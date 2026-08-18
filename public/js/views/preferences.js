@@ -82,7 +82,7 @@ function buildColumns() {
 
 function editItem(p) {
   const pol = select([['喜欢', '💗 喜欢'], ['不喜欢', '🙅 不喜欢']], p ? p.polarity : '喜欢');
-  const cat = select(CATEGORIES.map((c) => [c, c]), p ? p.category : '吃');
+  const cat = select(CATEGORIES.map((c) => [c, c]), p ? p.category : (filterCat !== 'all' ? filterCat : '吃'));
   const title = input({ type: 'text', value: p ? p.title : '', placeholder: '比如：杨枝甘露 / 深紫色 / 香水百合' });
   const detail = input({ type: 'text', value: p ? p.detail : '', placeholder: '补充：三分糖去冰 / 只在夏天 / 讨厌的原因…（可空）' });
   const md = openModal({
