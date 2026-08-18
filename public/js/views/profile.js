@@ -6,6 +6,37 @@ const BASIC_FIELDS = [
   ['height', '身高 (cm)'], ['weight', '体重 (kg)'], ['shoeSize', '鞋码'],
   ['topSize', '上衣尺码'], ['bottomSize', '裤装尺码'], ['ringSize', '戒指圈口'], ['glasses', '眼镜度数']
 ];
+
+// 将已有 birthday 规整为 input[type=date] 需要的 YYYY-MM-DD；无法解析则返回 ''
+function normalizeBirthday(str) {
+  if (!str) return '';
+  str = String(str).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  let m = str.match(/^(\d{1,2})-(\d{1,2})$/);
+  if (m) return `2000-${String(m[1]).padStart(2, '0')}-${String(m[2]).padStart(2, '0')}`;
+  m = str.match(/^(\d{1,2})月(\d{1,2})日?$/);
+  if (m) return `2000-${String(m[1]).padStart(2, '0')}-${String(m[2]).padStart(2, '0')}`;
+  return '';
+}
+
+// 由月日算星座（中文）
+function getZodiac(month, day) {
+  const md = month * 100 + day;
+  if (md >= 1222 || md <= 119) return '摩羯座';
+  if (md <= 218) return '水瓶座';
+  if (md <= 320) return '双鱼座';
+  if (md <= 419) return '白羊座';
+  if (md <= 520) return '金牛座';
+  if (md <= 621) return '双子座';
+  if (md <= 722) return '巨蟹座';
+  if (md <= 822) return '狮子座';
+  if (md <= 922) return '处女座';
+  if (md <= 1023) return '天秤座';
+  if (md <= 1122) return '天蝎座';
+  if (md <= 1221) return '射手座';
+  return '摩羯座';
+}
+
 const HEALTH_FIELDS = [['allergies', '过敏（食物/药物）'], ['medications', '正在用的药'], ['notes', '其他健康备注']];
 
 let profile = null;
@@ -71,6 +102,20 @@ function kvList(fields, data) {
 function editBasics() {
   const inputs = {};
   const content = el('div', null, ...BASIC_FIELDS.map(([k, label]) => {
+    if (k === 'birthday') {
+      inputs[k] = input({
+        type: 'date',
+        value: normalizeBirthday(profile.basics && profile.basics[k]),
+        onchange: () => {
+          const v = inputs.birthday.value;
+          if (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+            const p = v.split('-');
+            inputs.zodiac.value = getZodiac(parseInt(p[1], 10), parseInt(p[2], 10));
+          }
+        }
+      });
+      return field(label, inputs[k]);
+    }
     inputs[k] = input({ type: 'text', value: (profile.basics && profile.basics[k]) || '' });
     return field(label, inputs[k]);
   }));
