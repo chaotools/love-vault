@@ -1,7 +1,7 @@
-// 偏好视图：喜欢 / 不喜欢 双栏，按 吃穿用玩 分组
+// 偏好视图：喜欢 / 不喜欢 双栏，按 吃/喝/穿/用/玩 分组
 import { el, get, post, patch, del, toast, openModal, field, input, select, emptyState } from '../core.js';
 
-const CATEGORIES = ['吃', '穿', '用', '玩', '其他'];
+const CATEGORIES = ['吃', '喝', '穿', '用', '玩', '其他'];
 let prefs = [];
 let filterCat = 'all';
 let viewEl = null;

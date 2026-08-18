@@ -9,7 +9,7 @@ const { collectionRouter, str, bool, dateStr, inEnum } = require('./collections'
 
 // ---------- 偏好 ----------
 const PREF_POLARITY = ['喜欢', '不喜欢'];
-const PREF_CATEGORY = ['吃', '穿', '用', '玩', '其他'];
+const PREF_CATEGORY = ['吃', '喝', '穿', '用', '玩', '其他'];
 const preferencesRouter = (c) => collectionRouter(c, (b) => ({
   polarity: inEnum(b.polarity, PREF_POLARITY),
   category: inEnum(b.category, PREF_CATEGORY),
