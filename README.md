@@ -2,7 +2,12 @@
 
 > TA 的一切，都在这里 —— 身高体重尺码健康、爱吃的讨厌的、身边的人、大事记与承诺、愿望与礼物、照片视频，还有一个读得懂这一切的 AI。
 
-本地优先的私人应用：数据全部存在自己机器上的 `data/` 目录，**复制这个目录 = 完整备份/搬家**。可在任何服务器复现部署。
+一个私有优先的记忆库，支持两种使用方式：
+
+- **本地单用户**：不配置认证环境变量即可使用，数据保存在 `data/`；复制该目录即可备份或搬家。
+- **服务器多用户**：每个微信用户拥有一份彼此隔离的记忆库；小程序与网页读写同一份数据，网页通过小程序扫码确认登录。
+
+线上部署默认不公开任何记忆数据：网页 API、媒体文件和用户目录都必须经过登录鉴权。
 
 ## 功能总览
 
@@ -29,18 +34,31 @@ npm start
 
 Windows 双击 `start.bat` 即可。手机与电脑同一 WiFi 时，用 `http://电脑IP:3000` 访问，浏览器菜单里"添加到主屏幕"即得全屏 App 体验（PWA）。
 
-## 部署到服务器（可复现）
+本地模式不需要密码或服务令牌，适合个人电脑离线使用；请不要把这个未配置认证的本地模式直接暴露到公网。
 
-### 方式一：Docker（推荐）
+## 部署到服务器
+
+当前生产方案使用 CNB 容器镜像、Nginx HTTPS 和小程序后端的登录桥接：
+
+```text
+小程序 ──微信登录──> 小程序后端 ──内部服务令牌 + user_id──> Love Vault
+网页 ──扫码确认──> 小程序后端 ──一次性凭证──> Love Vault 会话 Cookie
+```
+
+每个 OpenID 只映射到一个随机内部 `user_id`。OpenID 不会写入媒体目录或暴露给网页；用户之间不能查看、搜索或猜测读取对方的内容。
+
+生产环境的 CNB、Nginx、自动发布、回滚与备份步骤见 [deploy/README.md](deploy/README.md)。当前线上入口为 [love.chaotools.tech](https://love.chaotools.tech)。
+
+### 本地 Docker 试运行
 
 ```bash
 git clone <你的仓库> love-vault && cd love-vault
-docker compose up -d          # 完事，访问 http://服务器IP:3000
+docker compose up --build     # 访问 http://localhost:3000
 ```
 
-数据在宿主机 `./data` 目录，升级版本只需 `git pull && docker compose up -d --build`。
+默认只监听 `127.0.0.1:3000`，数据在宿主机 `./data`。公网部署请使用 `deploy/docker-compose.yml` 和反向代理，不要直接暴露容器端口。
 
-### 方式二：裸跑 Node（PM2 守护）
+### 裸跑 Node（本地开发）
 
 ```bash
 npm ci
@@ -57,34 +75,31 @@ pm2 save && pm2 startup
 | `DATA_DIR` | ./data | 数据目录（可指到独立磁盘/挂载卷） |
 | `AI_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | - | AI 配置，优先级高于网页设置（Key 不落盘场景） |
 | `TRUST_PROXY` | - | HTTPS 反向代理时设为 `1`，让会话 Cookie 正确标记为 Secure |
-| `COOKIE_SECURE` | 自动 | `true` 强制 Secure，`false` 关闭；本机 HTTP 调试保持默认即可 |
-| `MOBILE_SERVICE_TOKEN` | - | 小程序后端的内部服务令牌；仅服务器环境变量，绝不能发送给小程序 |
+| `MOBILE_SERVICE_TOKEN` | - | 小程序后端与 Love Vault 之间的内部服务令牌；仅存于服务器环境变量，绝不能发送给小程序 |
+| `WEB_SESSION_SECRET` | - | 用于签发网页扫码登录会话的高强度密钥；生产环境必须设置 |
+| `AUTH_BROKER_URL` | - | 小程序后端的 Love Vault 登录桥接地址；网页扫码登录需要它 |
+| `LEGACY_USER_ID` | - | 可选。将旧版 `data/` 根目录数据迁移至指定 UUID 用户目录；迁移可恢复且不会覆盖已有文件 |
 
 ### 小程序接入
 
-小程序不能直接使用网页 Cookie。仓库提供了服务令牌认证：将同一个高强度
-`MOBILE_SERVICE_TOKEN` 分别配置给 Love Vault 和小程序后端，小程序后端再验证微信
-Token 与 OpenID 白名单后代理有限的文字、照片和媒体接口。完整的 CNB、Nginx、备份与
-自动发布配置见 [deploy/README.md](deploy/README.md)。
+小程序不直接访问 Love Vault，也不持有网页 Cookie 或内部服务令牌。它先由现有后端验证微信
+登录 Token，后端将 OpenID 映射为内部 UUID，再以内部服务令牌代理必要的文字、照片、搜索和
+媒体请求。任意有效微信用户首次使用时都会得到一个空的独立记忆库，不使用 OpenID 白名单。
+
+网页端只支持小程序扫码确认登录：登录挑战 5 分钟过期、只能兑换一次；成功后浏览器获得仅限
+`love.chaotools.tech` 的 `HttpOnly`、`Secure` 会话 Cookie。不会显示配对码，也没有全站通用密码。
 
 ### 安全（上服务器必读）
 
-1. **设置访问密码**：网页右上 ⚙ 设置 → 安全 → 访问密码。密码 scrypt 哈希存储，媒体文件同样受保护。
-2. **上 HTTPS**：公网部署强烈建议套一层反向代理，Caddy 示例：
+1. **设置并保管密钥**：`MOBILE_SERVICE_TOKEN` 与 `WEB_SESSION_SECRET` 必须是不同的高强度随机值，只放在服务器环境变量和 GitHub Secrets。
+2. **只开放 Nginx 必要端口**：Love Vault 容器仅绑定 `127.0.0.1:3000`；小程序后端负责鉴权和媒体代理。
+3. **上 HTTPS**：公网部署必须套一层反向代理。Nginx 示例配置见 [deploy/love.chaotools.tech.conf](deploy/love.chaotools.tech.conf)；反向代理部署时设 `TRUST_PROXY=1`，让登录 Cookie 保持 `Secure`。
 
-```
-love.example.com {
-    reverse_proxy 127.0.0.1:3000
-}
-```
-
-反向代理部署时，请同时为服务设置 `TRUST_PROXY=1`；这样登录会话 Cookie 会带上 `Secure` 标记，避免被 HTTP 传输。
-
-nginx 等价配置：`location / { proxy_pass http://127.0.0.1:3000; proxy_set_header Host $host; }`
+未登录访问网页 API 或媒体将返回 `401`；持有服务令牌但缺少合法内部 UUID 的请求同样会被拒绝。
 
 ## 备份与搬家
 
-所有记忆（照片、视频、缩略图、各模块数据、配置）都在 `data/`（或你指定的 `DATA_DIR`）里。**定期复制这个目录**（网盘/移动硬盘均可），换机器时把它放回 `love-vault/data/` 直接继续用。
+所有记忆（照片、视频、缩略图、各模块数据、配置）都在 `data/`（或你指定的 `DATA_DIR`）里；多用户部署时位于 `data/users/<内部 UUID>/`。**定期备份整个目录**，换机器时恢复该目录即可。生产环境可使用 `deploy/backup.sh` 生成加密备份包。
 
 ## 从旧版 love-memory 迁移
 
@@ -101,10 +116,11 @@ server.js            入口（Express，零机器绑定）
 src/store.js         JSON 原子持久化
 src/media.js         EXIF/缩略图/视频封面/HEIC
 src/ai.js            多供应商大模型（OpenAI 兼容协议单点封装）
-src/auth.js          访问密码（scrypt + 会话）
+src/auth.js          小程序服务令牌、扫码网页登录会话与本地模式边界
+src/user-data.js     按用户隔离的 JSON 存储、媒体目录与旧数据迁移
 src/routes/          REST API（memories/profile/preferences/people/events/wishes/gifts/search/ask/config）
 public/              前端（原生 ES Modules，无构建）
-data/                ★ 全部记忆
+data/                ★ 全部记忆（多用户时为 users/<内部 UUID>/）
 ```
 
 ## 数据模型速览
