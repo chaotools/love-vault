@@ -8,6 +8,12 @@ const SERVICE_TOKEN_HEADER = 'x-love-vault-service-token';
 const USER_HEADER = 'x-love-vault-user-id';
 const USER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+// 本地单用户模式：未配置任何认证环境变量时直接放行，数据仍用 data/ 根目录的旧布局
+const LOCAL_USER_ID = 'local';
+function authConfigured() {
+  return Boolean(process.env.WEB_SESSION_SECRET) || Boolean(process.env.MOBILE_SERVICE_TOKEN);
+}
+
 function secret() { return process.env.WEB_SESSION_SECRET || ''; }
 function serviceMatches(req) {
   const expected = process.env.MOBILE_SERVICE_TOKEN || '';
@@ -39,6 +45,7 @@ function readSession(req) {
 function cookie(value, maxAge) { return `${COOKIE}=${encodeURIComponent(value)}; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=Lax; Secure`; }
 
 function requireAuth(req, res, next) {
+  if (!authConfigured()) { req.vaultUserId = LOCAL_USER_ID; return next(); }
   if (serviceMatches(req)) { req.vaultUserId = req.get(USER_HEADER); return next(); }
   const userId = readSession(req);
   if (userId) { req.vaultUserId = userId; return next(); }
@@ -47,7 +54,10 @@ function requireAuth(req, res, next) {
 
 function router() {
   const r = express.Router();
-  r.get('/status', (req, res) => res.json({ enabled: true, authenticated: Boolean(readSession(req)) }));
+  r.get('/status', (req, res) => res.json({
+    enabled: authConfigured(),
+    authenticated: !authConfigured() || Boolean(readSession(req))
+  }));
   r.post('/logout', (req, res) => { res.setHeader('Set-Cookie', cookie('', 0)); res.json({ ok: true }); });
   r.post('/web-login/start', async (req, res) => {
     const broker = process.env.AUTH_BROKER_URL || '';
@@ -88,4 +98,4 @@ function router() {
   return r;
 }
 
-module.exports = { requireAuth, router, readSession, serviceMatches, COOKIE, SERVICE_TOKEN_HEADER, USER_HEADER };
+module.exports = { requireAuth, router, readSession, serviceMatches, authConfigured, LOCAL_USER_ID, COOKIE, SERVICE_TOKEN_HEADER, USER_HEADER };

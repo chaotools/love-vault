@@ -9,7 +9,7 @@
     "migrate-old": "node migrate-old.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20.9"
   },
   "dependencies": {
     "express": "^4.21.2",

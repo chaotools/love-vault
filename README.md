@@ -19,7 +19,7 @@
 
 ## 快速开始（本机）
 
-要求：[Node.js](https://nodejs.org) ≥ 18（视频封面和 HEIC 转换建议装 [FFmpeg](https://ffmpeg.org)，不装也能用，自动降级）
+要求：[Node.js](https://nodejs.org) ≥ 20.9（视频封面和 HEIC 转换建议装 [FFmpeg](https://ffmpeg.org)，不装也能用，自动降级）
 
 ```bash
 npm install
