@@ -1,5 +1,5 @@
 // 大事记视图：竖向时间线，里程碑/约会/旅行/争吵与和解/承诺
-import { el, get, post, patch, del, toast, openModal, openLightbox, field, input, select, textarea, fmtDate, toLocalInput, emptyState } from '../core.js';
+import { el, get, post, patch, del, toast, openModal, openLightbox, field, input, select, textarea, fmtDate, toLocalInput, emptyState, mediaPreview } from '../core.js';
 
 const TYPES = ['里程碑', '约会', '旅行', '争吵与和解', '承诺', '其他'];
 const TYPE_ICON = { 里程碑: '💘', 约会: '🌹', 旅行: '✈️', 争吵与和解: '🕊️', 承诺: '🤙', 其他: '📌' };
@@ -71,7 +71,11 @@ function buildList() {
         el('div', { class: 'vtl-title', text: e.title }),
         e.description ? el('div', { class: 'vtl-desc', text: e.description }) : null,
         linked.length ? el('div', { class: 'vtl-media' },
-          ...linked.map((m) => el('img', { src: m.thumb, title: m.note || '', onclick: () => openLightbox(linked, linked.indexOf(m)) }))) : null,
+          ...linked.map((m) => {
+            const preview = mediaPreview(m, { title: m.note || '' });
+            preview.addEventListener('click', () => openLightbox(linked, linked.indexOf(m)));
+            return preview;
+          })) : null,
         el('div', { class: 'vtl-actions' },
           isPromise ? promiseCheck(e) : null,
           el('button', { class: 'ghost-btn', style: 'padding:5px 14px;font-size:12px', text: '编辑', onclick: () => editEvent(e) }),
@@ -118,12 +122,12 @@ function editEvent(e) {
       return;
     }
     for (const m of memories.slice(0, 60)) {
-      const img = el('img', { src: m.thumb, class: selected.has(m.id) ? 'sel' : '', title: m.note || '' });
-      img.addEventListener('click', () => {
+      const preview = mediaPreview(m, { className: selected.has(m.id) ? 'sel' : '', title: m.note || '' });
+      preview.addEventListener('click', () => {
         if (selected.has(m.id)) selected.delete(m.id); else selected.add(m.id);
-        img.classList.toggle('sel');
+        preview.classList.toggle('sel');
       });
-      picker.append(img);
+      picker.append(preview);
     }
   };
   renderPicker();
