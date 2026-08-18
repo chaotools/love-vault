@@ -41,11 +41,22 @@ async function loadVault(vault) {
 class UserDataManager {
   constructor(root) { this.root = root; this.cache = new Map(); }
   async get(userId) {
-    if (!this.cache.has(userId)) {
-      const vault = await loadVault(buildVault(path.join(this.root, 'users', userId)));
+    const existing = this.cache.get(userId);
+    if (existing) return existing;
+
+    // 在加载完成前先缓存同一个 Promise。否则同一新用户的并发请求会各自
+    // 创建一套 store，后写入的一套可能覆盖先写入的一套。
+    const pending = loadVault(buildVault(path.join(this.root, 'users', userId)));
+    this.cache.set(userId, pending);
+    try {
+      const vault = await pending;
       this.cache.set(userId, vault);
+      return vault;
+    } catch (e) {
+      // 初始化失败不能缓存失败的 Promise，让下次请求能够重新尝试。
+      if (this.cache.get(userId) === pending) this.cache.delete(userId);
+      throw e;
     }
-    return this.cache.get(userId);
   }
 }
 
@@ -53,11 +64,11 @@ const LEGACY_FILES = ['config.json', 'profile.json', 'preferences.json', 'people
 const LEGACY_DIRS = ['media', 'thumbs', 'music'];
 
 // 把旧版单用户布局（data/ 根目录）迁移到 data/users/<userId>/。
-// 目标目录已存在时绝不触碰，避免覆盖任何已有数据。
+// 每项文件都是原子移动；若进程在中途退出，下次启动会继续移动剩余项目。
+// 目标同名项目已存在时明确失败，绝不覆盖任何已有数据。
 async function migrateLegacyTo(root, userId) {
   const dst = path.join(root, 'users', userId);
   const exists = (p) => fsp.access(p).then(() => true).catch(() => false);
-  if (await exists(dst)) return false;
 
   const candidates = [
     ...LEGACY_FILES.map((f) => path.join(root, f)),
@@ -68,6 +79,12 @@ async function migrateLegacyTo(root, userId) {
   if (!found.length) return false;
 
   await fsp.mkdir(dst, { recursive: true });
+  for (const s of found) {
+    const target = path.join(dst, path.basename(s));
+    if (await exists(target)) {
+      throw new Error(`旧数据迁移已停止：目标已存在 ${target}`);
+    }
+  }
   for (const s of found) {
     await fsp.rename(s, path.join(dst, path.basename(s)));
   }
