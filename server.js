@@ -46,7 +46,9 @@ async function attachVault(req, res, next) {
     next();
   } catch (e) { next(e); }
 }
-const serveVaultDir = (key) => (req, res, next) => express.static(req.vault[key])(req, res, next);
+const serveVaultDir = (key) => (req, res, next) => express.static(req.vault[key], {
+  setHeaders: (response) => response.setHeader('X-Content-Type-Options', 'nosniff')
+})(req, res, next);
 
 // ---------- 应用 ----------
 const app = express();
