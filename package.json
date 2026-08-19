@@ -12,6 +12,8 @@
     "node": ">=20.9"
   },
   "dependencies": {
+    "adm-zip": "^0.6.0",
+    "archiver": "^7.0.1",
     "express": "^4.21.2",
     "multer": "^2.0.1",
     "qrcode": "^1.5.4",

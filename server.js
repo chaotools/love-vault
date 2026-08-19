@@ -15,6 +15,9 @@ const { configRouter } = require('./src/routes/config');
 const content = require('./src/routes/content');
 const { searchRouter } = require('./src/routes/search');
 const { askRouter } = require('./src/routes/ask');
+const { statsRouter } = require('./src/routes/stats');
+const { transferRouter } = require('./src/routes/transfer');
+const { computeReminders } = require('./src/reminders');
 const { UserDataManager, buildVault, loadVault, migrateLegacyTo } = require('./src/user-data');
 const { migrateStoredApiKeys } = require('./src/secrets');
 
@@ -31,7 +34,7 @@ const users = new UserDataManager(DATA_DIR);
 
 const getData = (req) => {
   const v = req.vault;
-  return { config: v.config.data, profile: v.profile.data, preferences: v.preferences.list(), people: v.people.list(), events: v.events.list(), wishes: v.wishes.list(), gifts: v.gifts.list(), memories: v.memories.list().slice().sort((a, b) => (b.takenAt || '').localeCompare(a.takenAt || '')) };
+  return { config: v.config.data, profile: v.profile.data, preferences: v.preferences.list(), people: v.people.list(), events: v.events.list(), wishes: v.wishes.list(), gifts: v.gifts.list(), albums: v.albums.list(), memories: v.memories.list().slice().sort((a, b) => (b.takenAt || '').localeCompare(a.takenAt || '')) };
 };
 
 // 认证之后挂载当前请求对应的保险库（本地模式 → data/ 根目录；多用户 → 各自目录）
@@ -63,8 +66,17 @@ app.use('/api/people', content.peopleRouter((req) => req.vault.people));
 app.use('/api/events', content.eventsRouter((req) => req.vault.events));
 app.use('/api/wishes', content.wishesRouter((req) => req.vault.wishes));
 app.use('/api/gifts', content.giftsRouter((req) => req.vault.gifts));
+app.use('/api/albums', content.albumsRouter((req) => req.vault.albums));
 app.use('/api/search', searchRouter(getData));
 app.use('/api/ask', askRouter((req) => req.vault.config, getData));
+app.use('/api/stats', statsRouter(getData));
+app.use('/api/transfer', transferRouter((req) => req.vault));
+
+// 提醒：把当前保险库快照交给纯计算模块
+app.get('/api/reminders', (req, res) => {
+  const days = Math.min(Math.max(parseInt(req.query.days || '30', 10) || 30, 1), 365);
+  res.json(computeReminders(getData(req), { daysAhead: days }));
+});
 
 const memoriesApi = content.memoriesRouter((req) => req.vault.memories);
 app.use('/api/memories', memoriesApi.router);

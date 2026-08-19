@@ -19,6 +19,7 @@ function buildVault(root) {
     wishes: new Collection(path.join(root, 'wishes.json')),
     gifts: new Collection(path.join(root, 'gifts.json')),
     memories: new Collection(path.join(root, 'memories.json')),
+    albums: new Collection(path.join(root, 'albums.json')),
   };
 }
 
@@ -32,7 +33,7 @@ async function loadVault(vault) {
   await Promise.all([
     vault.config.load(), vault.profile.load(),
     vault.preferences.load(), vault.people.load(), vault.events.load(),
-    vault.wishes.load(), vault.gifts.load(), vault.memories.load(),
+    vault.wishes.load(), vault.gifts.load(), vault.memories.load(), vault.albums.load(),
   ]);
   await content.ensureIndex(vault.memories, vault.mediaDir, vault.thumbDir);
   return vault;
