@@ -283,7 +283,8 @@ function eventCard(e) {
       el('span', { class: 'ev-day', text: `${d.getMonth() + 1}月${d.getDate()}日` }),
       e.type === '承诺' ? el('span', { class: e.done ? 'ev-done-flag' : 'ev-pending-flag', text: e.done ? '✓ 已兑现' : '未兑现' }) : null
     ),
-    el('div', { class: 'ev-title', text: e.title }),
+    el('div', { class: 'ev-title' }, e.title,
+      e.createdBy === 'ai' ? el('span', { class: 'record-origin', text: 'AI 记录' }) : null),
     e.description ? el('div', { class: 'ev-desc', text: e.description }) : null,
     e.location ? el('div', { class: 'ev-loc', text: '📍 ' + e.location }) : null
   );
@@ -305,6 +306,7 @@ function showEvent(e) {
       el('div', { class: 'ev-top', style: 'margin-bottom:10px' },
         el('span', { class: 'ev-badge', text: e.type || '其他' }),
         el('span', { class: 'ev-day', text: fmtDate(e.date) }),
+        e.createdBy === 'ai' ? el('span', { class: 'record-origin', text: 'AI 记录' }) : null,
         e.location ? el('span', { class: 'ev-day', text: '📍 ' + e.location }) : null),
       e.description ? el('p', { style: 'font-size:14px;line-height:1.9;white-space:pre-wrap', text: e.description }) : null,
       mediaStrip

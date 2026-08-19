@@ -36,7 +36,8 @@ export async function render(container) {
     if (!chat.length) {
       list.append(el('div', { class: 'chat-suggest' },
         el('p', { style: 'font-size:13px;color:var(--muted);width:100%', text: '试试这些：' }),
-        ...SUGGESTIONS.map((s) => el('button', { text: s, onclick: () => { input.value = s; send(); } }))));
+        ...SUGGESTIONS.map((s) => el('button', { text: s, onclick: () => { input.value = s; send(); } })),
+        el('p', { style: 'font-size:12px;color:var(--muted);width:100%;margin-top:6px', text: '💡 也可以直接告诉 TA 新信息，比如"TA说想要一台胶片相机""TA不喜欢吃香菜"——我会帮你记进对应模块' })));
     }
     for (const m of chat) {
       list.append(el('div', { class: 'chat-bubble ' + (m.role === 'user' ? 'user' : 'ai' + (m.error ? ' error' : '')), text: m.content }));
@@ -57,6 +58,15 @@ export async function render(container) {
     try {
       const r = await post('/api/ask', { messages: chat.filter((m) => !m.error).slice(-20) });
       chat.push({ role: 'assistant', content: r.answer });
+      // 本次对话 AI 通过工具写入记忆库的条目，提示用户（去重拒绝的单独提示"已存在"）
+      for (const w of r.written || []) {
+        const moduleName = { preferences: '偏好', events: '大事记', wishes: '愿望', people: '人名', gifts: '礼物' }[w.module] || w.module;
+        if (w.ok === false) {
+          toast(`「${moduleName}」里已有「${w.title}」，没有重复记`, 'ok');
+        } else {
+          toast(`已记入「${moduleName}」：${w.title} 💕`, 'ok');
+        }
+      }
     } catch (e) {
       chat.push({ role: 'assistant', content: '出错了：' + e.message, error: true });
     }
@@ -72,7 +82,7 @@ export async function render(container) {
 
   container.append(el('div', { class: 'chat-wrap' },
     el('div', { class: 'chat-head' },
-      el('span', { class: 'chat-model', text: `🤖 ${ai.provider} · ${ai.model} · 读得懂这里所有的记忆` }),
+      el('span', { class: 'chat-model', text: `🤖 ${ai.provider} · ${ai.model} · 读得懂这里所有的记忆，也能帮你记下新信息` }),
       chat.length ? el('button', {
         class: 'ghost-btn', style: 'padding:5px 14px;font-size:12px', text: '清空对话', onclick: () => {
           if (!confirm('清空聊天记录？')) return;

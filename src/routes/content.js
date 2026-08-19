@@ -14,7 +14,8 @@ const preferencesRouter = (c) => collectionRouter(c, (b) => ({
   polarity: inEnum(b.polarity, PREF_POLARITY),
   category: inEnum(b.category, PREF_CATEGORY),
   title: str(b.title),
-  detail: str(b.detail)
+  detail: str(b.detail),
+  source: str(b.source)                 // 来源（如"AI 对话"）
 }));
 
 // ---------- 人名关系 ----------
@@ -27,7 +28,8 @@ const peopleRouter = (c) => collectionRouter(c, (b) => ({
   lunar: bool(b.lunar),                // 生日按农历过
   leap: bool(b.leap),                  // 闰月生日（如闰二月初一生日）
   howMet: str(b.howMet),               // 相识故事
-  notes: str(b.notes)
+  notes: str(b.notes),
+  source: str(b.source)                // 来源（如"AI 对话"）
 }));
 
 // ---------- 相册（照片/视频分组） ----------
@@ -67,7 +69,8 @@ const giftsRouter = (c) => collectionRouter(c, (b) => ({
   direction: inEnum(b.direction, GIFT_DIRECTION),
   occasion: str(b.occasion),           // 生日 / 纪念日 / 惊喜…
   date: dateStr(b.date),
-  note: str(b.note)
+  note: str(b.note),
+  source: str(b.source)                // 来源（如"AI 对话"）
 }));
 
 // ---------- 档案（对象存储，整体读写） ----------
