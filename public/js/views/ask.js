@@ -64,7 +64,7 @@ export async function render(container) {
         if (w.ok === false) {
           toast(`「${moduleName}」里已有「${w.title}」，没有重复记`, 'ok');
         } else {
-          toast(`已记入「${moduleName}」：${w.title} 💕`, 'ok');
+          toast(`已记入「${moduleName}」：${w.title}${w.date ? `（${w.date}）` : ''} 💕`, 'ok');
         }
       }
     } catch (e) {

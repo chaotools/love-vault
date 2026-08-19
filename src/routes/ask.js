@@ -1,6 +1,7 @@
 // AI 问答路由：支持大模型工具调用，把用户告诉 AI 的新信息真实写入记忆库
 const express = require('express');
 const ai = require('../ai');
+const { resolveEventDate } = require('../date-resolution');
 
 const PREF_CATEGORIES = ['吃', '喝', '穿', '用', '玩', '其他'];
 const EVENT_TYPES = ['里程碑', '约会', '旅行', '争吵与和解', '承诺', '其他'];
@@ -37,6 +38,7 @@ const TOOLS = [
         type: 'object',
         properties: {
           date: { type: 'string', description: '日期，ISO 8601，如 2026-08-19 或 2026-08-19T20:30' },
+          dateText: { type: 'string', description: '用户原话中的日期片段，必须原样复制（如“今年7月31日”）；用户未提日期时留空' },
           title: { type: 'string', description: '事件标题' },
           type: { type: 'string', enum: EVENT_TYPES, description: '事件类型' },
           description: { type: 'string', description: '详情' },
@@ -111,7 +113,7 @@ const eventIdentity = (date, title, type) => [eventDay(date), normalizeIdentity(
 // 执行一次工具调用：返回 { ok, module, title, detail }
 // 去重：同一请求内的重复工具调用、以及库中已有的同一事实均拒绝写入。
 // 大事记使用“日期（按天）+ 标题 + 类型”识别同一件事，因此同名但不同日期仍可记录。
-async function executeTool(name, args, vault, { requestToolCalls } = {}) {
+async function executeTool(name, args, vault, { requestToolCalls, userDateText, now } = {}) {
   args = args && typeof args === 'object' && !Array.isArray(args) ? args : {};
   const sanitize = (v) => (typeof v === 'string' ? v.trim().slice(0, 2000) : '');
   const fail = (detail) => ({ ok: false, module: '', title: '', detail });
@@ -149,9 +151,14 @@ async function executeTool(name, args, vault, { requestToolCalls } = {}) {
     case 'addEvent': {
       const title = sanitize(args.title);
       if (!title) return fail('缺少事件标题');
-      let date = null;
-      if (args.date) { const d = new Date(args.date); if (!isNaN(d.getTime())) date = d.toISOString(); }
-      const eventDate = date || new Date().toISOString();
+      // 正常路由会传入 userDateText；直接调用本函数的旧调用方保留 ISO 日期兼容。
+      const resolution = typeof userDateText === 'string'
+        ? resolveEventDate({ dateText: sanitize(args.dateText), userText: userDateText, now })
+        : null;
+      if (resolution && !resolution.ok) return fail(resolution.error);
+      let legacyDate = null;
+      if (!resolution && args.date) { const d = new Date(args.date); if (!isNaN(d.getTime())) legacyDate = d.toISOString(); }
+      const eventDate = resolution ? `${resolution.date}T00:00:00.000Z` : (legacyDate || new Date().toISOString());
       const type = inEnum(args.type, EVENT_TYPES, '其他');
       const identity = eventIdentity(eventDate, title, type);
       const repeated = repeatedInRequest(`event:${identity}`, 'events', title);
@@ -165,9 +172,11 @@ async function executeTool(name, args, vault, { requestToolCalls } = {}) {
         type,
         description: sanitize(args.description),
         location: sanitize(args.location),
+        dateSource: resolution ? resolution.source : 'legacy_model_date',
+        dateText: resolution ? resolution.dateText : '',
         createdBy: AI_CREATED_BY
       });
-      return { ok: true, module: 'events', title: item.title, detail: item.type };
+      return { ok: true, module: 'events', title: item.title, detail: item.type, date: item.date.slice(0, 10) };
     }
     case 'addWish': {
       const title = sanitize(args.title);
@@ -260,12 +269,14 @@ function askRouter(configStore, getData) {
       if (!clean.length) return res.status(400).json({ error: '消息内容为空' });
 
       const requestToolCalls = new Set();
+      const latestUser = [...clean].reverse().find((message) => message.role === 'user');
+      const requestNow = new Date();
       const answered = await ai.chatCompletionWithTools(
         resolved,
-        ai.buildBaseMessages(resolveData(req), clean),
+        ai.buildBaseMessages(resolveData(req), clean, { now: requestNow }),
         TOOLS,
         async (name, args) => {
-          const result = await executeTool(name, args, vault, { requestToolCalls });
+          const result = await executeTool(name, args, vault, { requestToolCalls, userDateText: latestUser.content, now: requestNow });
           // 成功与去重拒绝都记入 written（带 ok 标记），供前端区分展示；
           // 其他失败（缺参等）只回填给模型，不进 written
           if (result.ok) written.push(result);
@@ -274,8 +285,9 @@ function askRouter(configStore, getData) {
         }
       );
 
+      const savedDates = written.filter((entry) => entry.ok && entry.date).map((entry) => `已记为：${entry.date}`);
       res.json({
-        answer: answered.content || '好的，已经记下来了。',
+        answer: [answered.content || '好的，已经记下来了。', ...savedDates].join('\n\n'),
         written
       });
     } catch (e) {
