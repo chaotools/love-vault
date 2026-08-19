@@ -15,7 +15,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'addPreference',
-      description: '记录TA的一条喜好或雷区（喜欢/不喜欢、吃/喝/穿/用/玩）',
+      description: '记录TA的一条喜好或雷区（喜欢/不喜欢、吃/喝/穿/用/玩）；同态度同内容已记录时会被拒绝重复写入',
       parameters: {
         type: 'object',
         properties: {
@@ -50,13 +50,13 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'addWish',
-      description: '记录一个愿望（TA想要的东西或想去的地方）',
+      description: '记录一个愿望（TA想要的东西或想去的地方）；若已记录过同名的，服务端会拒绝重复写入',
       parameters: {
         type: 'object',
         properties: {
           title: { type: 'string', description: '愿望内容' },
           note: { type: 'string', description: '型号/颜色等备注' },
-          source: { type: 'string', description: '来源，如：TA随口说的' }
+          source: { type: 'string', description: '来源，如：TA随口说的；AI 记录时统一为 AI 对话' }
         },
         required: ['title']
       }
@@ -66,7 +66,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'addPerson',
-      description: '记录TA身边的一个新人物（家人/朋友/同事）',
+      description: '记录TA身边的一个新人物（家人/朋友/同事）；同名已存在时会被拒绝重复写入',
       parameters: {
         type: 'object',
         properties: {
@@ -84,7 +84,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'addGift',
-      description: '记录一件礼物（送过或想送的）',
+      description: '记录一件礼物（送过或想送的）；同礼物同方向已记录时会被拒绝重复写入',
       parameters: {
         type: 'object',
         properties: {
@@ -103,19 +103,32 @@ const TOOLS = [
 const inEnum = (v, values, fallback) => (values.includes(v) ? v : fallback);
 
 // 执行一次工具调用：返回 { ok, module, title, detail }
+// 去重：偏好/愿望/人名/礼物在写入前按关键字段查重，已存在则拒绝（不产生重复记录）；
+// 大事记允许同名不同日期，不查重。
 async function executeTool(name, args, vault) {
   args = args && typeof args === 'object' && !Array.isArray(args) ? args : {};
   const sanitize = (v) => (typeof v === 'string' ? v.trim().slice(0, 2000) : '');
   const fail = (detail) => ({ ok: false, module: '', title: '', detail });
+  const dup = (module, title) => ({ ok: false, module, title, detail: '已存在，未重复写入' });
+  // 写入来源标记：AI 对话写入的记录可被识别，便于用户区分手记与 AI 记
+  const AI_SOURCE = 'AI 对话';
+
+  const list = (col) => col.list();
+
   switch (name) {
     case 'addPreference': {
       const title = sanitize(args.title);
       if (!title) return fail('缺少偏好内容');
+      const polarity = inEnum(args.polarity, ['喜欢', '不喜欢'], '喜欢');
+      if (list(vault.preferences).some((p) => p.title === title && p.polarity === polarity)) {
+        return dup('preferences', title);
+      }
       const item = await vault.preferences.add({
-        polarity: inEnum(args.polarity, ['喜欢', '不喜欢'], '喜欢'),
+        polarity,
         category: inEnum(args.category, PREF_CATEGORIES, '其他'),
         title,
-        detail: sanitize(args.detail)
+        detail: sanitize(args.detail),
+        source: AI_SOURCE
       });
       return { ok: true, module: 'preferences', title: item.title, detail: `${item.polarity} · ${item.category}` };
     }
@@ -136,10 +149,12 @@ async function executeTool(name, args, vault) {
     case 'addWish': {
       const title = sanitize(args.title);
       if (!title) return fail('缺少愿望内容');
+      if (list(vault.wishes).some((w) => w.title === title)) return dup('wishes', title);
       const item = await vault.wishes.add({
         title,
         note: sanitize(args.note),
-        source: sanitize(args.source),
+        // 模型/用户若提供了来源（如"TA随口说的"）则保留；没提供才标 AI 对话
+        source: sanitize(args.source) || AI_SOURCE,
         status: '想要',
         priority: '中'
       });
@@ -148,26 +163,31 @@ async function executeTool(name, args, vault) {
     case 'addPerson': {
       const personName = sanitize(args.name);
       if (!personName) return fail('缺少人物称呼');
+      if (list(vault.people).some((p) => p.name === personName)) return dup('people', personName);
       const item = await vault.people.add({
         name: personName,
         relation: sanitize(args.relation),
         group: inEnum(args.group, PEOPLE_GROUPS, '其他'),
         howMet: sanitize(args.howMet),
-        notes: sanitize(args.notes)
+        notes: sanitize(args.notes),
+        source: AI_SOURCE
       });
       return { ok: true, module: 'people', title: item.name, detail: item.group };
     }
     case 'addGift': {
       const title = sanitize(args.title);
       if (!title) return fail('缺少礼物名称');
+      const direction = inEnum(args.direction, GIFT_DIRECTIONS, '送给TA');
+      if (list(vault.gifts).some((g) => g.title === title && g.direction === direction)) return dup('gifts', title);
       let date = null;
       if (args.date) { const d = new Date(args.date); if (!isNaN(d.getTime())) date = d.toISOString(); }
       const item = await vault.gifts.add({
         title,
-        direction: inEnum(args.direction, GIFT_DIRECTIONS, '送给TA'),
+        direction,
         occasion: sanitize(args.occasion),
         date,
-        note: sanitize(args.note)
+        note: sanitize(args.note),
+        source: AI_SOURCE
       });
       return { ok: true, module: 'gifts', title: item.title, detail: item.direction };
     }
@@ -215,7 +235,10 @@ function askRouter(configStore, getData) {
         TOOLS,
         async (name, args) => {
           const result = await executeTool(name, args, vault);
+          // 成功与去重拒绝都记入 written（带 ok 标记），供前端区分展示；
+          // 其他失败（缺参等）只回填给模型，不进 written
           if (result.ok) written.push(result);
+          else if (result.detail === '已存在，未重复写入') written.push(result);
           return result.ok ? JSON.stringify({ ok: true, saved: result.title, module: result.module }) : JSON.stringify({ ok: false, error: result.detail });
         }
       );

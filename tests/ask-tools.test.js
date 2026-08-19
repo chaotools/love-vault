@@ -97,6 +97,56 @@ test('addWish / addPerson / addGift 默认值正确', async () => {
   }
 });
 
+test('去重：同内容重复记录被拒绝，不产生重复数据', async () => {
+  const { root, vault } = await makeVault();
+  try {
+    const r1 = await executeTool('addPreference', { polarity: '喜欢', category: '吃', title: '杨枝甘露', detail: '三分糖' }, vault);
+    const r2 = await executeTool('addPreference', { polarity: '喜欢', category: '吃', title: '杨枝甘露', detail: '三分糖' }, vault);
+    assert.equal(r1.ok, true);
+    assert.equal(r2.ok, false);
+    assert.match(r2.detail, /已存在/);
+    assert.equal(vault.preferences.list().length, 1);
+
+    await executeTool('addWish', { title: '胶片相机' }, vault);
+    const dupWish = await executeTool('addWish', { title: '胶片相机' }, vault);
+    assert.equal(dupWish.ok, false);
+    assert.equal(vault.wishes.list().length, 1);
+
+    await executeTool('addGift', { title: '围巾', direction: '送给TA' }, vault);
+    const dupGift = await executeTool('addGift', { title: '围巾', direction: '送给TA' }, vault);
+    assert.equal(dupGift.ok, false);
+    assert.equal(vault.gifts.list().length, 1);
+    // 同礼物不同方向不算重复
+    const otherDir = await executeTool('addGift', { title: '围巾', direction: 'TA送我' }, vault);
+    assert.equal(otherDir.ok, true);
+    assert.equal(vault.gifts.list().length, 2);
+
+    await executeTool('addPerson', { name: '李阿姨' }, vault);
+    const dupPerson = await executeTool('addPerson', { name: '李阿姨' }, vault);
+    assert.equal(dupPerson.ok, false);
+    assert.equal(vault.people.list().length, 1);
+  } finally {
+    await fsp.rm(root, { recursive: true, force: true });
+  }
+});
+
+test('溯源：AI 写入的条目 source 标记为 AI 对话（偏好/人名/礼物，愿望沿用既有字段）', async () => {
+  const { root, vault } = await makeVault();
+  try {
+    // 用与其他测试不同的标题，避免去重拦截导致断言落空
+    await executeTool('addPreference', { polarity: '不喜欢', title: '香菜' }, vault);
+    await executeTool('addPerson', { name: '溯源同学' }, vault);
+    await executeTool('addGift', { title: '溯源香水', direction: '送给TA' }, vault);
+    await executeTool('addWish', { title: '溯源露营' }, vault);
+    assert.equal(vault.preferences.list()[0].source, 'AI 对话');
+    assert.equal(vault.people.list()[0].source, 'AI 对话');
+    assert.equal(vault.gifts.list()[0].source, 'AI 对话');
+    assert.equal(vault.wishes.list()[0].source, 'AI 对话');
+  } finally {
+    await fsp.rm(root, { recursive: true, force: true });
+  }
+});
+
 test('缺少必填内容或工具参数不是对象时拒绝写入', async () => {
   const { root, vault } = await makeVault();
   try {

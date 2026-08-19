@@ -58,10 +58,14 @@ export async function render(container) {
     try {
       const r = await post('/api/ask', { messages: chat.filter((m) => !m.error).slice(-20) });
       chat.push({ role: 'assistant', content: r.answer });
-      // 本次对话 AI 通过工具真实写入记忆库的条目，提示用户
+      // 本次对话 AI 通过工具写入记忆库的条目，提示用户（去重拒绝的单独提示"已存在"）
       for (const w of r.written || []) {
         const moduleName = { preferences: '偏好', events: '大事记', wishes: '愿望', people: '人名', gifts: '礼物' }[w.module] || w.module;
-        toast(`已记入「${moduleName}」：${w.title} 💕`, 'ok');
+        if (w.ok === false) {
+          toast(`「${moduleName}」里已有「${w.title}」，没有重复记`, 'ok');
+        } else {
+          toast(`已记入「${moduleName}」：${w.title} 💕`, 'ok');
+        }
       }
     } catch (e) {
       chat.push({ role: 'assistant', content: '出错了：' + e.message, error: true });
