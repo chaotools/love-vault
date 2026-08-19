@@ -105,6 +105,21 @@ function profileRouter(store) {
 }
 
 // ---------- 照片/视频 ----------
+// 上传白名单：只接收浏览器可直接展示/转码的媒体格式（svg 可携带脚本，明确拒绝）
+const IMAGE_UPLOAD_EXT = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif']);
+const ALLOWED_UPLOAD_EXT = new Set([...IMAGE_UPLOAD_EXT, ...media.VIDEO_EXT]);
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+const MAX_VIDEO_SIZE = 200 * 1024 * 1024;
+
+const uploadError = (message, status = 400) => Object.assign(new Error(message), { status });
+const kindForExt = (ext) => IMAGE_UPLOAD_EXT.has(ext) ? 'image' : (media.VIDEO_EXT.has(ext) ? 'video' : null);
+
+function mimeMatchesExt(mime, ext) {
+  if (!mime || mime === 'application/octet-stream') return true;
+  const kind = kindForExt(ext);
+  return Boolean(kind) && mime.startsWith(kind + '/');
+}
+
 function memoriesRouter(collection) {
   const r = express.Router();
   const resolve = (req) => typeof collection === 'function' ? collection(req) : collection;
@@ -136,10 +151,6 @@ function memoriesRouter(collection) {
     });
   };
 
-  const removeUploadedFiles = async (files) => {
-    await Promise.all((files || []).map((file) => fsp.unlink(file.path).catch(() => {})));
-  };
-
   const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, req.vault.mediaDir),
     filename: (req, file, cb) => {
@@ -147,7 +158,19 @@ function memoriesRouter(collection) {
       cb(null, crypto.randomUUID() + ext);
     }
   });
-  const upload = multer({ storage, limits: { fileSize: 1024 * 1024 * 1024 } });
+  const upload = multer({
+    storage,
+    limits: { fileSize: MAX_VIDEO_SIZE },
+    fileFilter: (req, file, cb) => {
+      const ext = media.extOf(file.originalname);
+      const mime = String(file.mimetype || '').toLowerCase().trim();
+      // 空 MIME / octet-stream 仅为兼容设备；路由内还会检查真实文件内容。
+      if (!ALLOWED_UPLOAD_EXT.has(ext) || !mimeMatchesExt(mime, ext)) {
+        return cb(uploadError(`文件类型与声明不匹配: ${ext || '未知'}`));
+      }
+      cb(null, true);
+    }
+  });
 
   r.get('/', async (req, res) => {
     const items = resolve(req).list()
@@ -157,36 +180,56 @@ function memoriesRouter(collection) {
   });
 
   r.post('/upload', upload.array('files'), async (req, res) => {
-    const results = [];
     const files = req.files || [];
+    const artifacts = new Set(files.map((file) => file.path));
+    const removeArtifacts = async () => {
+      await Promise.all([...artifacts].map((file) => fsp.unlink(file).catch(() => {})));
+    };
     let takenAts;
     try {
+      if (!files.length) throw uploadError('请选择至少一个文件');
       // 在处理任何文件前验证所有手动日期，避免日期错误导致部分上传。
       takenAts = uploadTakenAts(req.body, files.length);
     } catch (e) {
-      await removeUploadedFiles(files);
-      return res.status(400).json({ ok: false, error: e.message });
+      await removeArtifacts();
+      return res.status(e.status || 400).json({ ok: false, error: e.message });
     }
     try {
+      const pending = [];
       for (const [index, file] of files.entries()) {
+        const originalExt = media.extOf(file.originalname);
+        const limit = IMAGE_UPLOAD_EXT.has(originalExt) ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE;
+        if (file.size > limit) {
+          throw uploadError(`${IMAGE_UPLOAD_EXT.has(originalExt) ? '照片' : '视频'}不能超过 ${limit / 1024 / 1024} MB`, 413);
+        }
         let filename = file.filename;
         let fullPath = file.path;
         if (media.HEIC_EXT.has(media.extOf(file.originalname))) {
           const conv = await media.convertHeic(fullPath, filename);
-          filename = conv.filename; fullPath = conv.fullPath;
+          filename = conv.filename;
+          fullPath = conv.fullPath;
+          artifacts.add(fullPath);
         }
+        await media.validateMediaFile(fullPath, filename).catch((e) => {
+          throw uploadError(`媒体内容无效: ${e.message}`);
+        });
         const id = filename.replace(/\.[^.]+$/, '');
+        artifacts.add(path.join(req.vault.thumbDir, id + '.jpg'));
         const mem = await media.indexFile(fullPath, filename, id, {
           thumbDir: req.vault.thumbDir,
           takenAt: takenAts[index]
         });
-        const saved = await resolve(req).add(mem);
-        results.push(await publicMem(req, saved));
+        pending.push(mem);
       }
-      res.json({ ok: true, items: results });
+      const collection = resolve(req);
+      const saved = typeof collection.addMany === 'function'
+        ? await collection.addMany(pending)
+        : await Promise.all(pending.map((mem) => collection.add(mem)));
+      res.json({ ok: true, items: await Promise.all(saved.map((mem) => publicMem(req, mem))) });
     } catch (e) {
-      console.error('上传处理失败:', e);
-      res.status(500).json({ ok: false, error: e.message });
+      if (!e.status || e.status >= 500) console.error('上传处理失败:', e);
+      await removeArtifacts();
+      res.status(e.status || 500).json({ ok: false, error: e.message });
     }
   });
 

@@ -1,5 +1,7 @@
 // 大模型调用：所有供应商统一走 OpenAI 兼容 Chat Completions 协议
 // 优先级：环境变量 AI_BASE_URL / AI_API_KEY / AI_MODEL > config.json 里的 ai 配置
+const { decryptApiKey } = require('./secrets');
+
 const PROVIDERS = {
   zhipu:    { name: '智谱 GLM',   baseUrl: 'https://open.bigmodel.cn/api/paas/v4',            models: ['glm-4-plus', 'glm-4-air', 'glm-4-flash'] },
   openai:   { name: 'OpenAI',     baseUrl: 'https://api.openai.com/v1',                        models: ['gpt-4o-mini', 'gpt-4o'] },
@@ -18,7 +20,7 @@ function resolveConfig(config) {
     provider,
     providerName: preset.name,
     baseUrl: (process.env.AI_BASE_URL || ai.baseUrl || preset.baseUrl || '').replace(/\/+$/, ''),
-    apiKey: process.env.AI_API_KEY || ai.apiKey || '',
+    apiKey: process.env.AI_API_KEY || decryptApiKey(ai.apiKey) || '',
     model: process.env.AI_MODEL || ai.model || (preset.models && preset.models[0]) || ''
   };
 }
@@ -68,7 +70,14 @@ function buildDataContext({ config, profile, preferences, people, events, wishes
     纪念日: config.memorialDays
   };
   push('基本配置', cfg);
-  push('TA的档案（含健康/尺码/生理期）', profile || {});
+
+  // 健康/生理期属于敏感数据，默认不发给第三方大模型，需在设置里显式开启
+  const privacy = (config.ai && config.ai.privacy) || { health: false, period: false };
+  const profileCtx = { ...(profile || {}) };
+  if (!privacy.health) delete profileCtx.health;
+  if (!privacy.period) delete profileCtx.period;
+  push('TA的档案（含尺码等基本信息）', profileCtx);
+
   push('喜好与雷区', (preferences || []).map((p) => ({ 类型: p.polarity, 分类: p.category, 内容: p.title, 详情: p.detail || '' })));
   push('TA身边的人', (people || []).map((p) => ({ 姓名: p.name, 关系: p.relation, 分组: p.group, 生日: p.birthday || '', 相识: p.howMet || '', 备注: p.notes || '' })));
   push('大事记与承诺', (events || []).map((e) => ({ 日期: (e.date || '').slice(0, 10), 标题: e.title, 类型: e.type, 完成: e.type === '承诺' ? !!e.done : undefined, 地点: e.location || '', 详情: e.description || '' })));
@@ -103,4 +112,4 @@ async function testConnection(resolved) {
   return reply.trim();
 }
 
-module.exports = { PROVIDERS, resolveConfig, isConfigured, ask, testConnection, chatCompletion };
+module.exports = { PROVIDERS, resolveConfig, isConfigured, ask, testConnection, chatCompletion, buildDataContext };

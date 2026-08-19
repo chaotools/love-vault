@@ -10,6 +10,11 @@ let THUMB_DIR = null;
 
 const VIDEO_EXT = new Set(['mp4', 'mov', 'm4v', 'webm', 'mkv', 'avi', 'mts', 'm2ts', '3gp']);
 const HEIC_EXT = new Set(['heic', 'heif']);
+const IMAGE_FORMATS = {
+  jpg: new Set(['jpeg']), jpeg: new Set(['jpeg']), png: new Set(['png']),
+  webp: new Set(['webp']), gif: new Set(['gif']),
+  heic: new Set(['heif', 'heic']), heif: new Set(['heif', 'heic'])
+};
 
 function init(mediaDir, thumbDir) {
   MEDIA_DIR = mediaDir;
@@ -118,11 +123,29 @@ async function probeVideo(p) {
   ]);
   const data = JSON.parse(stdout);
   const v = (data.streams || []).find((s) => s.codec_type === 'video');
+  if (!v) throw new Error('文件不包含视频流');
   return {
     width: v ? v.width : null,
     height: v ? v.height : null,
     duration: data.format && data.format.duration ? parseFloat(data.format.duration) : null
   };
+}
+
+// 上传后再依据文件真实内容确认类型。扩展名和 MIME 只能作为第一道过滤，
+// 不能阻止把任意字节伪装成 .jpg / .mp4。
+async function validateMediaFile(fullPath, filename) {
+  const ext = extOf(filename);
+  if (VIDEO_EXT.has(ext)) {
+    await probeVideo(fullPath);
+    return 'video';
+  }
+  const accepted = IMAGE_FORMATS[ext];
+  if (!accepted) throw new Error('不支持的图片格式');
+  const info = await sharp(fullPath, { failOn: 'error' }).metadata();
+  if (!info.format || !accepted.has(info.format) || !info.width || !info.height) {
+    throw new Error('图片内容与文件类型不匹配');
+  }
+  return 'photo';
 }
 
 async function generateImageThumb(src, dest) {
@@ -183,6 +206,6 @@ async function convertHeic(fullPath, filename) {
 }
 
 module.exports = {
-  init, indexFile, convertHeic, extOf, VIDEO_EXT, HEIC_EXT,
+  init, indexFile, convertHeic, extOf, VIDEO_EXT, HEIC_EXT, validateMediaFile, probeVideo,
   MEDIA_DIR: () => MEDIA_DIR, THUMB_DIR: () => THUMB_DIR
 };

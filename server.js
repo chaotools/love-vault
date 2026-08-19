@@ -16,6 +16,7 @@ const content = require('./src/routes/content');
 const { searchRouter } = require('./src/routes/search');
 const { askRouter } = require('./src/routes/ask');
 const { UserDataManager, buildVault, loadVault, migrateLegacyTo } = require('./src/user-data');
+const { migrateStoredApiKeys } = require('./src/secrets');
 
 const ROOT = __dirname;
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -52,8 +53,8 @@ app.use(express.json({ limit: '4mb' }));
 
 // 认证：静态壳文件可访问，/api/auth/* 开放，其余 API 与媒体需要登录
 // 路由一律持有 store（每次请求动态读 .data）；直接传 .data 会因 load() 重赋值而失效
-app.use('/api/auth', auth.router());
-app.use('/api', auth.requireAuth, attachVault);
+app.use('/api/auth', auth.csrfProtect, auth.router());
+app.use('/api', auth.csrfProtect, auth.requireAuth, attachVault);
 
 app.use('/api/config', configRouter((req) => req.vault.config, (req) => req.vault.config.save()));
 app.use('/api/profile', content.profileRouter((req) => req.vault.profile));
@@ -78,11 +79,21 @@ app.use('/music', auth.requireAuth, attachVault, serveVaultDir('musicDir'));
 app.use(express.static(PUBLIC_DIR, { etag: true, lastModified: true, setHeaders: (res, p) => { if (p.endsWith('sw.js')) res.setHeader('Cache-Control', 'no-cache'); } }));
 app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html'))); // SPA 兜底
 
+// 统一错误出口：multer 文件校验失败等中间件错误也返回 JSON
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  console.error('请求处理失败:', err.message);
+  if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: '单个文件不能超过 200 MB' });
+  res.status(err.status || 500).json({ error: err.message });
+});
+
 // ---------- 启动 ----------
 async function init() {
   await fsp.mkdir(DATA_DIR, { recursive: true });
   const legacyId = process.env.LEGACY_USER_ID || '';
   if (legacyId) await migrateLegacyTo(DATA_DIR, legacyId);
+  const keyMigration = await migrateStoredApiKeys(DATA_DIR);
+  if (keyMigration.migrated) console.log(`已加密 ${keyMigration.migrated} 份保存的 AI API Key`);
   // 本地模式预加载根目录保险库；多用户保险库在首次请求时懒加载
   await loadVault(legacyVault);
   media.init(legacyVault.mediaDir, legacyVault.thumbDir); // 兼容 migrate-old 等旧调用

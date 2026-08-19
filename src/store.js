@@ -23,8 +23,11 @@ class JsonStore {
 
   async save() {
     const tmp = this.file + '.tmp';
+    const bak = this.file + '.bak';
     await fsp.mkdir(path.dirname(this.file), { recursive: true });
     await fsp.writeFile(tmp, JSON.stringify(this.data, null, 2), 'utf8');
+    // 保留上一版：误删/误改时可回滚；首次写入没有旧文件，忽略失败
+    await fsp.copyFile(this.file, bak).catch(() => {});
     await fsp.rename(tmp, this.file);
   }
 }
@@ -51,6 +54,25 @@ class Collection {
     this.store.data.push(item);
     await this.store.save();
     return item;
+  }
+
+  // 多文件上传要么全部写入，要么一个也不写，避免半成功记录指向已清理的媒体文件。
+  async addMany(fieldsList) {
+    const now = new Date().toISOString();
+    const items = fieldsList.map((fields) => ({
+      ...fields,
+      id: fields.id || crypto.randomUUID(),
+      createdAt: fields.createdAt || now,
+      updatedAt: now
+    }));
+    this.store.data.push(...items);
+    try {
+      await this.store.save();
+      return items;
+    } catch (e) {
+      this.store.data.splice(-items.length, items.length);
+      throw e;
+    }
   }
 
   async update(id, patch) {

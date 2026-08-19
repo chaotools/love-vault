@@ -1,5 +1,6 @@
-// 配置路由：读写 config.json（AI / 密码等敏感项由 auth 路由单独处理）
+// 配置路由：读写 config.json（AI Key 落盘前加密，见 src/secrets.js）
 const express = require('express');
+const { encryptApiKey, encryptionEnabled } = require('../secrets');
 
 const DEFAULT_CONFIG = {
   title: '爱人记忆库',
@@ -8,8 +9,8 @@ const DEFAULT_CONFIG = {
   music: '',
   memorialDays: [],          // [{name, date}]
   periodEnabled: false,      // 生理期记录开关（首页提醒用）
-  ai: { provider: 'zhipu', baseUrl: '', apiKey: '', model: '' },
-  auth: undefined            // {salt, hash} 由 auth 路由维护
+  ai: { provider: 'zhipu', baseUrl: '', apiKey: '', model: '', privacy: { health: false, period: false } },
+  auth: undefined            // 历史遗留字段，已无密码功能
 };
 
 function configRouter(store, save) {
@@ -45,14 +46,23 @@ function configRouter(store, save) {
         .map((m) => ({ name: m.name.trim(), date: m.date }));
     }
     if (b.ai && typeof b.ai === 'object') {
+      if (typeof b.ai.apiKey === 'string' && b.ai.apiKey.trim() && process.env.NODE_ENV === 'production' && !encryptionEnabled()) {
+        return res.status(503).json({ error: '生产环境必须设置 VAULT_ENC_KEY 后才能保存 AI API Key' });
+      }
       config.ai = {
         provider: typeof b.ai.provider === 'string' ? b.ai.provider : (config.ai ? config.ai.provider : 'zhipu'),
         baseUrl: typeof b.ai.baseUrl === 'string' ? b.ai.baseUrl.trim() : '',
         // 空值表示“不修改”，使前端无需读取既有 Key；可通过环境变量替换。
         apiKey: typeof b.ai.apiKey === 'string' && b.ai.apiKey.trim()
-          ? b.ai.apiKey.trim()
+          ? encryptApiKey(b.ai.apiKey.trim())
           : ((config.ai && config.ai.apiKey) || ''),
-        model: typeof b.ai.model === 'string' ? b.ai.model.trim() : ''
+        model: typeof b.ai.model === 'string' ? b.ai.model.trim() : '',
+        privacy: (b.ai.privacy && typeof b.ai.privacy === 'object')
+          ? {
+            health: b.ai.privacy.health === true,
+            period: b.ai.privacy.period === true
+          }
+          : ((config.ai && config.ai.privacy) || { health: false, period: false })
       };
     }
     await (typeof save === 'function' ? save(req) : currentStore.save());
