@@ -156,6 +156,28 @@ test('同一次 AI 请求重复调用同一大事记只写入一次', async () =
   }
 });
 
+test('大事记相对日期由服务器覆盖模型猜错的年份', async () => {
+  const { root, vault } = await makeVault();
+  try {
+    const result = await executeTool('addEvent', {
+      // 故意模拟模型把“今年”误写成旧年份。
+      date: '2024-07-31',
+      dateText: '今年7月31日',
+      title: '拿到驾驶证',
+      type: '里程碑'
+    }, vault, {
+      userDateText: '记一下，她是今年 7 月 31 日拿到驾驶证的。',
+      now: new Date('2026-08-19T00:00:00.000Z')
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.date, '2026-07-31');
+    assert.equal(vault.events.list()[0].date.slice(0, 10), '2026-07-31');
+    assert.equal(vault.events.list()[0].dateSource, 'user_relative');
+  } finally {
+    await fsp.rm(root, { recursive: true, force: true });
+  }
+});
+
 test('溯源：AI 写入的条目用 createdBy 标记，source 仍保留事实来源', async () => {
   const { root, vault } = await makeVault();
   try {
