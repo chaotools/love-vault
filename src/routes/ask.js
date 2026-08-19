@@ -110,8 +110,8 @@ async function executeTool(name, args, vault) {
   const sanitize = (v) => (typeof v === 'string' ? v.trim().slice(0, 2000) : '');
   const fail = (detail) => ({ ok: false, module: '', title: '', detail });
   const dup = (module, title) => ({ ok: false, module, title, detail: '已存在，未重复写入' });
-  // 写入来源标记：AI 对话写入的记录可被识别，便于用户区分手记与 AI 记
-  const AI_SOURCE = 'AI 对话';
+  // 创建方式独立于 source：source 表示信息来自哪里，createdBy 表示谁写入了该记录。
+  const AI_CREATED_BY = 'ai';
 
   const list = (col) => col.list();
 
@@ -128,7 +128,7 @@ async function executeTool(name, args, vault) {
         category: inEnum(args.category, PREF_CATEGORIES, '其他'),
         title,
         detail: sanitize(args.detail),
-        source: AI_SOURCE
+        createdBy: AI_CREATED_BY
       });
       return { ok: true, module: 'preferences', title: item.title, detail: `${item.polarity} · ${item.category}` };
     }
@@ -142,7 +142,8 @@ async function executeTool(name, args, vault) {
         title,
         type: inEnum(args.type, EVENT_TYPES, '其他'),
         description: sanitize(args.description),
-        location: sanitize(args.location)
+        location: sanitize(args.location),
+        createdBy: AI_CREATED_BY
       });
       return { ok: true, module: 'events', title: item.title, detail: item.type };
     }
@@ -153,10 +154,11 @@ async function executeTool(name, args, vault) {
       const item = await vault.wishes.add({
         title,
         note: sanitize(args.note),
-        // 模型/用户若提供了来源（如"TA随口说的"）则保留；没提供才标 AI 对话
-        source: sanitize(args.source) || AI_SOURCE,
+        // source 仅记录事实的来源（如“TA 随口说的”），不承担创建方式标记。
+        source: sanitize(args.source),
         status: '想要',
-        priority: '中'
+        priority: '中',
+        createdBy: AI_CREATED_BY
       });
       return { ok: true, module: 'wishes', title: item.title, detail: '想要' };
     }
@@ -170,7 +172,7 @@ async function executeTool(name, args, vault) {
         group: inEnum(args.group, PEOPLE_GROUPS, '其他'),
         howMet: sanitize(args.howMet),
         notes: sanitize(args.notes),
-        source: AI_SOURCE
+        createdBy: AI_CREATED_BY
       });
       return { ok: true, module: 'people', title: item.name, detail: item.group };
     }
@@ -187,7 +189,7 @@ async function executeTool(name, args, vault) {
         occasion: sanitize(args.occasion),
         date,
         note: sanitize(args.note),
-        source: AI_SOURCE
+        createdBy: AI_CREATED_BY
       });
       return { ok: true, module: 'gifts', title: item.title, detail: item.direction };
     }

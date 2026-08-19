@@ -63,7 +63,8 @@ function buildColumns() {
       for (const p of group) {
         col.append(el('div', { class: 'pref-item', onclick: () => editItem(p) },
           el('div', null,
-            el('div', { class: 'pi-title', text: p.title }),
+            el('div', { class: 'pi-title' }, p.title,
+              p.createdBy === 'ai' ? el('span', { class: 'record-origin', text: 'AI 记录' }) : null),
             p.detail ? el('div', { class: 'pi-detail', text: p.detail }) : null),
           el('button', {
             class: 'pi-del', text: '✕', onclick: async (e) => {

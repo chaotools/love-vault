@@ -111,7 +111,8 @@ function wishTab() {
             cycleStatus(w);
           }
         }),
-        el('div', { class: 'wish-title', text: w.title }),
+        el('div', { class: 'wish-title' }, w.title,
+          w.createdBy === 'ai' ? el('span', { class: 'record-origin', text: 'AI 记录' }) : null),
         w.note ? el('div', { class: 'wish-note', text: w.note }) : null,
         el('div', { class: 'wish-meta' },
           el('span', { class: 'wish-priority p-' + (w.priority || '低'), title: '优先级' }),
@@ -181,7 +182,8 @@ function giftTab() {
   for (const g of gifts) {
     list.append(el('div', { class: 'gift-row', onclick: () => editGift(g) },
       el('span', { class: 'gift-dir d-' + g.direction, text: g.direction }),
-      el('span', { class: 'gift-title', text: g.title }),
+      el('span', { class: 'gift-title' }, g.title,
+        g.createdBy === 'ai' ? el('span', { class: 'record-origin', text: 'AI 记录' }) : null),
       el('span', { class: 'gift-meta', text: [g.occasion, g.date ? fmtDate(g.date) : ''].filter(Boolean).join(' · ') }),
       el('button', {
         class: 'cf-del', text: '✕', onclick: async (e) => {

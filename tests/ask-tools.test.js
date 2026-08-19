@@ -130,18 +130,21 @@ test('去重：同内容重复记录被拒绝，不产生重复数据', async ()
   }
 });
 
-test('溯源：AI 写入的条目 source 标记为 AI 对话（偏好/人名/礼物，愿望沿用既有字段）', async () => {
+test('溯源：AI 写入的条目用 createdBy 标记，source 仍保留事实来源', async () => {
   const { root, vault } = await makeVault();
   try {
     // 用与其他测试不同的标题，避免去重拦截导致断言落空
     await executeTool('addPreference', { polarity: '不喜欢', title: '香菜' }, vault);
     await executeTool('addPerson', { name: '溯源同学' }, vault);
     await executeTool('addGift', { title: '溯源香水', direction: '送给TA' }, vault);
-    await executeTool('addWish', { title: '溯源露营' }, vault);
-    assert.equal(vault.preferences.list()[0].source, 'AI 对话');
-    assert.equal(vault.people.list()[0].source, 'AI 对话');
-    assert.equal(vault.gifts.list()[0].source, 'AI 对话');
-    assert.equal(vault.wishes.list()[0].source, 'AI 对话');
+    await executeTool('addWish', { title: '溯源露营', source: 'TA 随口说的' }, vault);
+    await executeTool('addEvent', { title: '溯源约会' }, vault);
+    assert.equal(vault.preferences.list()[0].createdBy, 'ai');
+    assert.equal(vault.people.list()[0].createdBy, 'ai');
+    assert.equal(vault.gifts.list()[0].createdBy, 'ai');
+    assert.equal(vault.wishes.list()[0].createdBy, 'ai');
+    assert.equal(vault.events.list()[0].createdBy, 'ai');
+    assert.equal(vault.wishes.list()[0].source, 'TA 随口说的');
   } finally {
     await fsp.rm(root, { recursive: true, force: true });
   }

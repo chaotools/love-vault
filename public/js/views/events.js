@@ -68,7 +68,8 @@ function buildList() {
           el('span', { class: 'vtl-date', text: fmtDate(e.date) }),
           el('span', { class: 'ev-badge', text: (TYPE_ICON[e.type] || '📌') + ' ' + (e.type || '其他') }),
           e.location ? el('span', { class: 'vtl-date', text: '📍 ' + e.location }) : null),
-        el('div', { class: 'vtl-title', text: e.title }),
+        el('div', { class: 'vtl-title' }, e.title,
+          e.createdBy === 'ai' ? el('span', { class: 'record-origin', text: 'AI 记录' }) : null),
         e.description ? el('div', { class: 'vtl-desc', text: e.description }) : null,
         linked.length ? el('div', { class: 'vtl-media' },
           ...linked.map((m) => {
