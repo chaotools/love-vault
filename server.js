@@ -16,6 +16,7 @@ const content = require('./src/routes/content');
 const { searchRouter } = require('./src/routes/search');
 const { askRouter } = require('./src/routes/ask');
 const { UserDataManager, buildVault, loadVault, migrateLegacyTo } = require('./src/user-data');
+const { migrateStoredApiKeys } = require('./src/secrets');
 
 const ROOT = __dirname;
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -82,6 +83,7 @@ app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'inde
 app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
   console.error('请求处理失败:', err.message);
+  if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: '单个文件不能超过 200 MB' });
   res.status(err.status || 500).json({ error: err.message });
 });
 
@@ -90,6 +92,8 @@ async function init() {
   await fsp.mkdir(DATA_DIR, { recursive: true });
   const legacyId = process.env.LEGACY_USER_ID || '';
   if (legacyId) await migrateLegacyTo(DATA_DIR, legacyId);
+  const keyMigration = await migrateStoredApiKeys(DATA_DIR);
+  if (keyMigration.migrated) console.log(`已加密 ${keyMigration.migrated} 份保存的 AI API Key`);
   // 本地模式预加载根目录保险库；多用户保险库在首次请求时懒加载
   await loadVault(legacyVault);
   media.init(legacyVault.mediaDir, legacyVault.thumbDir); // 兼容 migrate-old 等旧调用

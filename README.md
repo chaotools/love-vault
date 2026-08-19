@@ -79,7 +79,8 @@ pm2 save && pm2 startup
 | `WEB_SESSION_SECRET` | - | 用于签发网页扫码登录会话的高强度密钥；生产环境必须设置 |
 | `AUTH_BROKER_URL` | - | 小程序后端的 Love Vault 登录桥接地址；网页扫码登录需要它 |
 | `LEGACY_USER_ID` | - | 可选。将旧版 `data/` 根目录数据迁移至指定 UUID 用户目录；迁移可恢复且不会覆盖已有文件 |
-| `VAULT_ENC_KEY` | - | 可选。设置后网页保存的 AI API Key 以 AES-256-GCM 加密落盘（`enc:v1:` 前缀）；未设置时保持明文，兼容旧数据 |
+| `PUBLIC_ORIGIN` | - | 公网网页地址，例如 `https://love.chaotools.tech`；生产环境用于严格 CSRF Origin 校验 |
+| `VAULT_ENC_KEY` | - | 生产环境必须设置的高熵密钥。网页保存的 AI API Key 会以 AES-256-GCM 加密落盘，启动时自动迁移已有明文配置与 `.bak` 备份；丢失或更换该密钥会使既有 Key 无法使用 |
 
 ### 小程序接入
 
@@ -92,7 +93,7 @@ pm2 save && pm2 startup
 
 ### 安全（上服务器必读）
 
-1. **设置并保管密钥**：`MOBILE_SERVICE_TOKEN` 与 `WEB_SESSION_SECRET` 必须是不同的高强度随机值，只放在服务器环境变量和 GitHub Secrets。
+1. **设置并保管密钥**：`MOBILE_SERVICE_TOKEN`、`WEB_SESSION_SECRET` 与 `VAULT_ENC_KEY` 必须是不同的高强度随机值，只放在服务器环境变量和 GitHub Secrets。迁移前先完成加密备份，之后不要随意轮换 `VAULT_ENC_KEY`。
 2. **只开放 Nginx 必要端口**：Love Vault 容器仅绑定 `127.0.0.1:3000`；小程序后端负责鉴权和媒体代理。
 3. **上 HTTPS**：公网部署必须套一层反向代理。Nginx 示例配置见 [deploy/love.chaotools.tech.conf](deploy/love.chaotools.tech.conf)；反向代理部署时设 `TRUST_PROXY=1`，让登录 Cookie 保持 `Secure`。
 
@@ -100,9 +101,9 @@ pm2 save && pm2 startup
 
 其他加固：
 
-- **CSRF**：带 `Origin` 的浏览器请求必须同源（对比 `Origin` 与 `Host`），跨域写操作返回 `403`；无 `Origin` 的服务端代理请求不受影响
+- **CSRF**：浏览器写请求必须与 `PUBLIC_ORIGIN` 完整一致（协议、主机与端口），跨域写操作返回 `403`；持有内部服务令牌的后端代理不受影响
 - **AI 隐私**：健康/生理期数据默认不发送给第三方大模型，可在 ⚙ 设置 → AI 隐私中显式开启
-- **上传校验**：只接受图片/视频格式白名单（含 HEIC），拒绝可执行文件、SVG 等危险类型
+- **上传校验**：扩展名、MIME 与真实媒体内容必须一致；照片最大 10 MB、视频最大 200 MB，拒绝可执行文件、SVG、伪造媒体与超限文件
 - **写时备份**：每个 JSON 文件写入前保留上一版为同名 `.bak`，误删误改可回滚
 
 ## 备份与搬家

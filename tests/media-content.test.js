@@ -92,7 +92,7 @@ test('上传白名单：拒绝非媒体文件，接受图片', async () => {
       const badRes = await fetch(origin + '/upload', { method: 'POST', body: bad });
       assert.equal(badRes.status, 400);
       const badBody = await badRes.json();
-      assert.match(badBody.error, /不支持的文件类型/);
+      assert.match(badBody.error, /文件类型与声明不匹配/);
 
       const pngBuf = await sharp({ create: { width: 2, height: 2, channels: 3, background: '#e87b8e' } }).png().toBuffer();
       const good = new FormData();
@@ -102,6 +102,44 @@ test('上传白名单：拒绝非媒体文件，接受图片', async () => {
       const goodBody = await goodRes.json();
       assert.equal(goodBody.items.length, 1);
       assert.equal(goodBody.items[0].type, 'photo');
+    });
+  } finally {
+    await fsp.rm(root, { recursive: true, force: true });
+  }
+});
+
+test('上传校验拒绝 MIME/扩展名不符、伪造图片和超限照片，并清理同批已处理媒体', async () => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'love-vault-strict-upload-'));
+  try {
+    const vault = { mediaDir: path.join(root, 'media'), thumbDir: path.join(root, 'thumbs') };
+    await fsp.mkdir(vault.mediaDir, { recursive: true });
+    await fsp.mkdir(vault.thumbDir, { recursive: true });
+    const items = [];
+    const collection = {
+      list: () => items,
+      add: async (m) => { items.push(m); return m; },
+      get: () => null,
+      update: async () => {},
+      remove: async () => {}
+    };
+    const png = await sharp({ create: { width: 2, height: 2, channels: 3, background: '#e87b8e' } }).png().toBuffer();
+
+    await withApp(appFor(collection, vault), async (origin) => {
+      const mismatch = new FormData();
+      mismatch.append('files', new Blob([png], { type: 'video/mp4' }), 'photo.png');
+      assert.equal((await fetch(origin + '/upload', { method: 'POST', body: mismatch })).status, 400);
+
+      const atomic = new FormData();
+      atomic.append('files', new Blob([png], { type: 'image/png' }), 'good.png');
+      atomic.append('files', new Blob(['not an image'], { type: 'image/jpeg' }), 'fake.jpg');
+      assert.equal((await fetch(origin + '/upload', { method: 'POST', body: atomic })).status, 400);
+      assert.deepEqual(items, []);
+      assert.deepEqual(await fsp.readdir(vault.mediaDir), []);
+      assert.deepEqual(await fsp.readdir(vault.thumbDir), []);
+
+      const tooLarge = new FormData();
+      tooLarge.append('files', new Blob([Buffer.alloc(10 * 1024 * 1024 + 1)], { type: 'image/jpeg' }), 'large.jpg');
+      assert.equal((await fetch(origin + '/upload', { method: 'POST', body: tooLarge })).status, 413);
     });
   } finally {
     await fsp.rm(root, { recursive: true, force: true });

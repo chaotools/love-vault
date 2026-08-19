@@ -30,7 +30,7 @@ function mintSession(userId) {
 }
 function readSession(req) {
   if (!secret()) return null;
-  const raw = (req.headers.cookie || '').split(/;\s*/).find((c) => c.startsWith(COOKIE + '='));
+  const raw = ((req.headers && req.headers.cookie) || '').split(/;\s*/).find((c) => c.startsWith(COOKIE + '='));
   if (!raw) return null;
   const token = decodeURIComponent(raw.slice(COOKIE.length + 1));
   const [payload, signature] = token.split('.');
@@ -52,13 +52,21 @@ function requireAuth(req, res, next) {
   return res.status(401).json({ error: 'unauthorized', needLogin: true });
 }
 
-// 带 Cookie 的浏览器请求必须同源；无 Origin 的请求（curl、小程序后端代理）不受影响。
-// 服务令牌路径本身不受 CSRF 影响（攻击者无法跨域携带自定义头）。
+// 写请求只接受严格同源的浏览器 Origin。生产环境使用 PUBLIC_ORIGIN，
+// 避免仅比较 hostname 时放行错误的协议或端口；内部服务令牌请求不受影响。
 function csrfProtect(req, res, next) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(String(req.method || 'POST').toUpperCase())) return next();
+  if (serviceMatches(req)) return next();
   const origin = req.get('Origin');
-  if (!origin) return next();
+  // 没有 Cookie 的无 Origin 请求是后端代理或未登录请求，交由认证层处理；
+  // 有网页会话 Cookie 的浏览器写请求则必须携带可信 Origin。
+  if (!origin) {
+    if (readSession(req)) return res.status(403).json({ error: 'missing origin for browser write request' });
+    return next();
+  }
   try {
-    if (new URL(origin).hostname === req.hostname) return next();
+    const expected = new URL(process.env.PUBLIC_ORIGIN || `${req.protocol || 'http'}://${req.get('Host') || req.hostname}`).origin;
+    if (new URL(origin).origin === expected) return next();
   } catch (e) { /* 非法 Origin 头按拒绝处理 */ }
   return res.status(403).json({ error: 'cross-origin request rejected' });
 }

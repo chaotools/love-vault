@@ -56,6 +56,25 @@ class Collection {
     return item;
   }
 
+  // 多文件上传要么全部写入，要么一个也不写，避免半成功记录指向已清理的媒体文件。
+  async addMany(fieldsList) {
+    const now = new Date().toISOString();
+    const items = fieldsList.map((fields) => ({
+      ...fields,
+      id: fields.id || crypto.randomUUID(),
+      createdAt: fields.createdAt || now,
+      updatedAt: now
+    }));
+    this.store.data.push(...items);
+    try {
+      await this.store.save();
+      return items;
+    } catch (e) {
+      this.store.data.splice(-items.length, items.length);
+      throw e;
+    }
+  }
+
   async update(id, patch) {
     const item = this.get(id);
     if (!item) return null;

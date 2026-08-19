@@ -1,6 +1,6 @@
 // 配置路由：读写 config.json（AI Key 落盘前加密，见 src/secrets.js）
 const express = require('express');
-const { encryptApiKey } = require('../secrets');
+const { encryptApiKey, encryptionEnabled } = require('../secrets');
 
 const DEFAULT_CONFIG = {
   title: '爱人记忆库',
@@ -46,6 +46,9 @@ function configRouter(store, save) {
         .map((m) => ({ name: m.name.trim(), date: m.date }));
     }
     if (b.ai && typeof b.ai === 'object') {
+      if (typeof b.ai.apiKey === 'string' && b.ai.apiKey.trim() && process.env.NODE_ENV === 'production' && !encryptionEnabled()) {
+        return res.status(503).json({ error: '生产环境必须设置 VAULT_ENC_KEY 后才能保存 AI API Key' });
+      }
       config.ai = {
         provider: typeof b.ai.provider === 'string' ? b.ai.provider : (config.ai ? config.ai.provider : 'zhipu'),
         baseUrl: typeof b.ai.baseUrl === 'string' ? b.ai.baseUrl.trim() : '',
