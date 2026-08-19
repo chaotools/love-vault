@@ -4,9 +4,11 @@ const assert = require('node:assert/strict');
 const os = require('os');
 const path = require('path');
 const fsp = require('fs/promises');
+const express = require('express');
 const { Collection } = require('../src/store');
-const { executeTool, TOOLS } = require('../src/routes/ask');
-const { chatCompletionWithTools } = require('../src/ai');
+const ai = require('../src/ai');
+const { askRouter, executeTool, TOOLS } = require('../src/routes/ask');
+const { chatCompletionWithTools } = ai;
 
 // 用一个临时目录构造最小 vault（只含 5 个记录集合）
 async function makeVault() {
@@ -95,6 +97,20 @@ test('addWish / addPerson / addGift 默认值正确', async () => {
   }
 });
 
+test('缺少必填内容或工具参数不是对象时拒绝写入', async () => {
+  const { root, vault } = await makeVault();
+  try {
+    const empty = await executeTool('addPreference', { polarity: '喜欢' }, vault);
+    const malformed = await executeTool('addPerson', null, vault);
+    assert.equal(empty.ok, false);
+    assert.equal(malformed.ok, false);
+    assert.equal(vault.preferences.list().length, 0);
+    assert.equal(vault.people.list().length, 0);
+  } finally {
+    await fsp.rm(root, { recursive: true, force: true });
+  }
+});
+
 test('chatCompletionWithTools：模型调两次工具后总结，工具结果回填给模型', async () => {
   // 用假实现模拟"模型第一轮调用 addWish + addPerson，第二轮纯文本总结"
   const calls = [];
@@ -152,4 +168,50 @@ test('chatCompletionWithTools：未知工具被标记失败并跳过，不会执
   assert.equal(result.content, '好了');
   // 只有白名单内的工具被真正执行
   assert.deepEqual(executed, ['addWish']);
+});
+
+test('chatCompletionWithTools：不支持工具的供应商降级为纯文本问答', async () => {
+  const unsupported = async () => {
+    const err = new Error('tools unsupported');
+    err.providerStatus = 400;
+    throw err;
+  };
+  const plain = async () => '纯文本回答';
+  const result = await chatCompletionWithTools(
+    {}, [{ role: 'user', content: '你好' }], TOOLS, async () => '不应执行', unsupported, plain
+  );
+  assert.equal(result.content, '纯文本回答');
+  assert.deepEqual(result.toolCalls, []);
+});
+
+test('chatCompletionWithTools：单轮工具调用过多时不执行写入', async () => {
+  const tooManyCalls = Array.from({ length: 9 }, (_, i) => ({ id: String(i), name: 'addWish', arguments: { title: String(i) } }));
+  const reply = await chatCompletionWithTools(
+    {}, [{ role: 'user', content: '记一下' }], TOOLS,
+    async () => { throw new Error('不应执行'); },
+    async () => ({ content: '', toolCalls: tooManyCalls, assistantMessage: { role: 'assistant', tool_calls: [] } })
+  );
+  assert.match(reply.content, /最多 8 项/);
+});
+
+test('测试连接路由使用当前配置存储', async () => {
+  const original = ai.testConnection;
+  const app = express();
+  app.use(express.json());
+  app.use('/', askRouter({ data: { ai: { provider: 'custom', baseUrl: 'https://ai.example', apiKey: 'test-key', model: 'test-model' } } }, () => ({})));
+  const server = await new Promise((resolve) => {
+    const value = app.listen(0, () => resolve(value));
+  });
+  try {
+    ai.testConnection = async (resolved) => {
+      assert.equal(resolved.model, 'test-model');
+      return '连接成功';
+    };
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/test`, { method: 'POST' });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).reply, '连接成功');
+  } finally {
+    ai.testConnection = original;
+    await new Promise((resolve) => server.close(resolve));
+  }
 });

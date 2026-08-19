@@ -104,23 +104,29 @@ const inEnum = (v, values, fallback) => (values.includes(v) ? v : fallback);
 
 // 执行一次工具调用：返回 { ok, module, title, detail }
 async function executeTool(name, args, vault) {
-  const sanitize = (v) => (typeof v === 'string' ? v.trim() : '');
+  args = args && typeof args === 'object' && !Array.isArray(args) ? args : {};
+  const sanitize = (v) => (typeof v === 'string' ? v.trim().slice(0, 2000) : '');
+  const fail = (detail) => ({ ok: false, module: '', title: '', detail });
   switch (name) {
     case 'addPreference': {
+      const title = sanitize(args.title);
+      if (!title) return fail('缺少偏好内容');
       const item = await vault.preferences.add({
         polarity: inEnum(args.polarity, ['喜欢', '不喜欢'], '喜欢'),
         category: inEnum(args.category, PREF_CATEGORIES, '其他'),
-        title: sanitize(args.title),
+        title,
         detail: sanitize(args.detail)
       });
       return { ok: true, module: 'preferences', title: item.title, detail: `${item.polarity} · ${item.category}` };
     }
     case 'addEvent': {
+      const title = sanitize(args.title);
+      if (!title) return fail('缺少事件标题');
       let date = null;
       if (args.date) { const d = new Date(args.date); if (!isNaN(d.getTime())) date = d.toISOString(); }
       const item = await vault.events.add({
         date: date || new Date().toISOString(),
-        title: sanitize(args.title),
+        title,
         type: inEnum(args.type, EVENT_TYPES, '其他'),
         description: sanitize(args.description),
         location: sanitize(args.location)
@@ -128,8 +134,10 @@ async function executeTool(name, args, vault) {
       return { ok: true, module: 'events', title: item.title, detail: item.type };
     }
     case 'addWish': {
+      const title = sanitize(args.title);
+      if (!title) return fail('缺少愿望内容');
       const item = await vault.wishes.add({
-        title: sanitize(args.title),
+        title,
         note: sanitize(args.note),
         source: sanitize(args.source),
         status: '想要',
@@ -138,8 +146,10 @@ async function executeTool(name, args, vault) {
       return { ok: true, module: 'wishes', title: item.title, detail: '想要' };
     }
     case 'addPerson': {
+      const personName = sanitize(args.name);
+      if (!personName) return fail('缺少人物称呼');
       const item = await vault.people.add({
-        name: sanitize(args.name),
+        name: personName,
         relation: sanitize(args.relation),
         group: inEnum(args.group, PEOPLE_GROUPS, '其他'),
         howMet: sanitize(args.howMet),
@@ -148,10 +158,12 @@ async function executeTool(name, args, vault) {
       return { ok: true, module: 'people', title: item.name, detail: item.group };
     }
     case 'addGift': {
+      const title = sanitize(args.title);
+      if (!title) return fail('缺少礼物名称');
       let date = null;
       if (args.date) { const d = new Date(args.date); if (!isNaN(d.getTime())) date = d.toISOString(); }
       const item = await vault.gifts.add({
-        title: sanitize(args.title),
+        title,
         direction: inEnum(args.direction, GIFT_DIRECTIONS, '送给TA'),
         occasion: sanitize(args.occasion),
         date,
@@ -220,7 +232,7 @@ function askRouter(configStore, getData) {
   // 测试连接（需要已登录；Key 走 env 或 config）
   r.post('/test', async (req, res) => {
     try {
-      const resolved = ai.resolveConfig(resolveStore(req).data);
+      const resolved = ai.resolveConfig(resolveConfigStore(req).data);
       const reply = await ai.testConnection(resolved);
       res.json({ ok: true, reply, provider: resolved.providerName, model: resolved.model });
     } catch (e) {
