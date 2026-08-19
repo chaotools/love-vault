@@ -101,25 +101,39 @@ const TOOLS = [
 ];
 
 const inEnum = (v, values, fallback) => (values.includes(v) ? v : fallback);
+const normalizeIdentity = (value) => (typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').toLowerCase() : '');
+const eventDay = (value) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+};
+const eventIdentity = (date, title, type) => [eventDay(date), normalizeIdentity(title), type].join('\u0000');
 
 // 执行一次工具调用：返回 { ok, module, title, detail }
-// 去重：偏好/愿望/人名/礼物在写入前按关键字段查重，已存在则拒绝（不产生重复记录）；
-// 大事记允许同名不同日期，不查重。
-async function executeTool(name, args, vault) {
+// 去重：同一请求内的重复工具调用、以及库中已有的同一事实均拒绝写入。
+// 大事记使用“日期（按天）+ 标题 + 类型”识别同一件事，因此同名但不同日期仍可记录。
+async function executeTool(name, args, vault, { requestToolCalls } = {}) {
   args = args && typeof args === 'object' && !Array.isArray(args) ? args : {};
   const sanitize = (v) => (typeof v === 'string' ? v.trim().slice(0, 2000) : '');
   const fail = (detail) => ({ ok: false, module: '', title: '', detail });
-  const dup = (module, title) => ({ ok: false, module, title, detail: '已存在，未重复写入' });
+  const dup = (module, title, requestDuplicate = false) => ({ ok: false, module, title, detail: '已存在，未重复写入', requestDuplicate });
   // 创建方式独立于 source：source 表示信息来自哪里，createdBy 表示谁写入了该记录。
   const AI_CREATED_BY = 'ai';
 
   const list = (col) => col.list();
+  const repeatedInRequest = (key, module, title) => {
+    if (!requestToolCalls) return null;
+    if (requestToolCalls.has(key)) return dup(module, title, true);
+    requestToolCalls.add(key);
+    return null;
+  };
 
   switch (name) {
     case 'addPreference': {
       const title = sanitize(args.title);
       if (!title) return fail('缺少偏好内容');
       const polarity = inEnum(args.polarity, ['喜欢', '不喜欢'], '喜欢');
+      const repeated = repeatedInRequest(`preference:${polarity}:${normalizeIdentity(title)}`, 'preferences', title);
+      if (repeated) return repeated;
       if (list(vault.preferences).some((p) => p.title === title && p.polarity === polarity)) {
         return dup('preferences', title);
       }
@@ -137,10 +151,18 @@ async function executeTool(name, args, vault) {
       if (!title) return fail('缺少事件标题');
       let date = null;
       if (args.date) { const d = new Date(args.date); if (!isNaN(d.getTime())) date = d.toISOString(); }
+      const eventDate = date || new Date().toISOString();
+      const type = inEnum(args.type, EVENT_TYPES, '其他');
+      const identity = eventIdentity(eventDate, title, type);
+      const repeated = repeatedInRequest(`event:${identity}`, 'events', title);
+      if (repeated) return repeated;
+      if (list(vault.events).some((event) => eventIdentity(event.date, event.title, inEnum(event.type, EVENT_TYPES, '其他')) === identity)) {
+        return dup('events', title);
+      }
       const item = await vault.events.add({
-        date: date || new Date().toISOString(),
+        date: eventDate,
         title,
-        type: inEnum(args.type, EVENT_TYPES, '其他'),
+        type,
         description: sanitize(args.description),
         location: sanitize(args.location),
         createdBy: AI_CREATED_BY
@@ -150,6 +172,8 @@ async function executeTool(name, args, vault) {
     case 'addWish': {
       const title = sanitize(args.title);
       if (!title) return fail('缺少愿望内容');
+      const repeated = repeatedInRequest(`wish:${normalizeIdentity(title)}`, 'wishes', title);
+      if (repeated) return repeated;
       if (list(vault.wishes).some((w) => w.title === title)) return dup('wishes', title);
       const item = await vault.wishes.add({
         title,
@@ -165,6 +189,8 @@ async function executeTool(name, args, vault) {
     case 'addPerson': {
       const personName = sanitize(args.name);
       if (!personName) return fail('缺少人物称呼');
+      const repeated = repeatedInRequest(`person:${normalizeIdentity(personName)}`, 'people', personName);
+      if (repeated) return repeated;
       if (list(vault.people).some((p) => p.name === personName)) return dup('people', personName);
       const item = await vault.people.add({
         name: personName,
@@ -180,6 +206,8 @@ async function executeTool(name, args, vault) {
       const title = sanitize(args.title);
       if (!title) return fail('缺少礼物名称');
       const direction = inEnum(args.direction, GIFT_DIRECTIONS, '送给TA');
+      const repeated = repeatedInRequest(`gift:${direction}:${normalizeIdentity(title)}`, 'gifts', title);
+      if (repeated) return repeated;
       if (list(vault.gifts).some((g) => g.title === title && g.direction === direction)) return dup('gifts', title);
       let date = null;
       if (args.date) { const d = new Date(args.date); if (!isNaN(d.getTime())) date = d.toISOString(); }
@@ -217,6 +245,7 @@ function askRouter(configStore, getData) {
   });
 
   r.post('/', async (req, res) => {
+    const written = [];
     try {
       const vault = resolveVault(req);
       const resolved = ai.resolveConfig(vault ? vault.config.data : resolveConfigStore(req).data);
@@ -230,17 +259,17 @@ function askRouter(configStore, getData) {
         .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
       if (!clean.length) return res.status(400).json({ error: '消息内容为空' });
 
-      const written = [];
+      const requestToolCalls = new Set();
       const answered = await ai.chatCompletionWithTools(
         resolved,
         ai.buildBaseMessages(resolveData(req), clean),
         TOOLS,
         async (name, args) => {
-          const result = await executeTool(name, args, vault);
+          const result = await executeTool(name, args, vault, { requestToolCalls });
           // 成功与去重拒绝都记入 written（带 ok 标记），供前端区分展示；
           // 其他失败（缺参等）只回填给模型，不进 written
           if (result.ok) written.push(result);
-          else if (result.detail === '已存在，未重复写入') written.push(result);
+          else if (result.detail === '已存在，未重复写入' && !result.requestDuplicate) written.push(result);
           return result.ok ? JSON.stringify({ ok: true, saved: result.title, module: result.module }) : JSON.stringify({ ok: false, error: result.detail });
         }
       );
@@ -250,6 +279,15 @@ function askRouter(configStore, getData) {
         written
       });
     } catch (e) {
+      const saved = written.filter((entry) => entry.ok);
+      // 工具调用已经成功落库时，不应因为模型最后的确认文字缺失而误导用户“整次失败”。
+      if (saved.length) {
+        return res.json({
+          answer: `已成功记下 ${saved.length} 条记录，但 AI 暂时没能生成确认回复。`,
+          written,
+          warning: 'AI_CONFIRMATION_UNAVAILABLE'
+        });
+      }
       res.status(e.status || 500).json({ error: e.message });
     }
   });
