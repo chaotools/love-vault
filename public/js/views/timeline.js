@@ -1,5 +1,5 @@
 // 时间轴视图：照片 + 视频 + 文字大事记 按月混排
-import { el, get, post, patch, del, toast, openModal, field, input, textarea, select, fmtDate, fmtDay, fmtDuration, toLocalInput, emptyState, mediaPreview } from '../core.js';
+import { el, get, post, patch, del, toast, openModal, openLightbox, field, input, textarea, select, fmtDate, fmtDay, fmtDuration, toLocalInput, emptyState, mediaPreview } from '../core.js';
 
 let memories = [];
 let events = [];
