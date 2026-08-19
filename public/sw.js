@@ -1,6 +1,6 @@
-// Love Vault Service Worker v2：网络优先（更新即时生效），离线时回退缓存
+// Love Vault Service Worker v3：网络优先（更新即时生效），离线时回退缓存
 // API 与媒体永远走网络
-const CACHE = 'love-vault-v2';
+const CACHE = 'love-vault-v3';
 
 self.addEventListener('install', (e) => {
   e.waitUntil(

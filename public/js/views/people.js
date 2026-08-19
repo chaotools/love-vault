@@ -77,7 +77,7 @@ function buildGrid() {
           el('div', { class: 'person-name', text: p.name }),
           el('div', { class: 'person-relation', text: p.relation || '' }))),
       el('span', { class: 'person-tag g-' + (p.group || '其他'), text: p.group || '其他' }),
-      p.birthday ? el('div', { class: 'person-bday' + (soon ? ' soon' : ''), text: '🎂 ' + p.birthday }) : null,
+      p.birthday ? el('div', { class: 'person-bday' + (soon ? ' soon' : ''), text: '🎂 ' + p.birthday + (p.lunar ? '（农历）' : '') }) : null,
       p.howMet ? el('div', { class: 'person-notes', text: '相识：' + p.howMet }) : null,
       p.notes ? el('div', { class: 'person-notes', text: p.notes }) : null));
   }
@@ -88,6 +88,9 @@ function editPerson(p) {
   const relation = input({ type: 'text', value: p ? p.relation : '', placeholder: '和TA的关系，如：妈妈 / 大学室友' });
   const group = select(GROUPS.map((g) => [g, g]), p ? p.group : (filterGroup !== 'all' ? filterGroup : '朋友'));
   const birthday = input({ type: 'text', value: p ? p.birthday : '', placeholder: '03-14 或 1998-03-14' });
+  const lunarChk = el('input', { type: 'checkbox', id: 'pLunar' });
+  lunarChk.checked = !!(p && p.lunar);
+  const lunarLabel = el('label', { class: 'lunar-chk' }, lunarChk, el('span', { text: '按农历过生日' }));
   const howMet = input({ type: 'text', value: p ? p.howMet : '', placeholder: '怎么认识/交集，如：TA的高中同桌' });
   const notes = textarea({ placeholder: 'TA提过的八卦、喜好、要注意的点…（可空）' }, p ? p.notes : '');
 
@@ -95,7 +98,7 @@ function editPerson(p) {
     title: p ? '编辑 ' + p.name : '加一个人',
     content: el('div', null,
       field('称呼', name), field('关系', relation), field('分组', group),
-      field('生日', birthday), field('相识', howMet), field('备注', notes)),
+      field('生日', birthday), lunarLabel, field('相识', howMet), field('备注', notes)),
     buttons: [
       p ? { el: el('button', { class: 'ghost-btn danger', text: '删除', onclick: async () => {
         if (!confirm(`删除「${p.name}」？`)) return;
@@ -108,7 +111,8 @@ function editPerson(p) {
         if (!name.value.trim()) { toast('称呼不能为空', 'err'); return; }
         const body = {
           name: name.value.trim(), relation: relation.value.trim(), group: group.value,
-          birthday: birthday.value.trim(), howMet: howMet.value.trim(), notes: notes.value.trim()
+          birthday: birthday.value.trim(), lunar: lunarChk.checked,
+          howMet: howMet.value.trim(), notes: notes.value.trim()
         };
         if (p) {
           const updated = await patch('/api/people/' + p.id, body);

@@ -1,15 +1,17 @@
 // 应用主控：启动、路由、全局搜索、随手记、设置、登录、首屏
 import { el, get, post, toast, store, openModal, field, input, select, fmtDate, initLightbox, pad } from './core.js';
+import { lunarDateText, nextOccurrence, daysUntil } from './lunar.js';
 import * as timeline from './views/timeline.js';
 import * as profile from './views/profile.js';
 import * as preferences from './views/preferences.js';
 import * as peopleView from './views/people.js';
 import * as eventsView from './views/events.js';
 import * as wishesView from './views/wishes.js';
+import * as statsView from './views/stats.js';
 import * as askView from './views/ask.js';
 
 const VIEWS = {
-  timeline, profile, preferences, people: peopleView, events: eventsView, wishes: wishesView, ask: askView
+  timeline, profile, preferences, people: peopleView, events: eventsView, wishes: wishesView, stats: statsView, ask: askView
 };
 
 const $ = (id) => document.getElementById(id);
@@ -22,6 +24,8 @@ async function boot() {
   }
   initLogin();
   initMusic();
+  initTheme();
+  initReminders();
   spawnHearts();
 
   store.on('needLogin', (v) => { $('loginOverlay').hidden = !v; });
@@ -39,6 +43,7 @@ async function boot() {
 
   applyConfig(store.data.config);
   if (store.data.ai) $('navAsk').hidden = !store.data.ai.configured;
+  $('heroLunar').textContent = lunarDateText(new Date());
 
   initRouter();
   initGlobalSearch();
@@ -81,73 +86,37 @@ function renderDays() {
 function renderChips() {
   const box = $('memorialChips');
   box.innerHTML = '';
+  const now = new Date();
   for (const md of (store.data.config.memorialDays || [])) {
     if (!md.date) continue;
-    const diff = Math.floor((Date.now() - new Date(md.date + 'T00:00:00').getTime()) / 86400000);
-    const txt = diff >= 0 ? `${md.name} · ${diff} 天` : `${md.name} · 还有 ${-diff} 天`;
-    box.append(el('div', { class: 'chip', text: txt }));
+    const next = nextOccurrence(md.date, md.lunar, now);
+    if (!next) continue;
+    const diff = daysUntil(next, now);
+    const tail = diff >= 0 ? `还有 ${diff} 天` : `已过 ${-diff} 天`;
+    box.append(el('div', { class: 'chip', text: '' },
+      md.name, ' · ', md.lunar ? '农历 ' : '', el('b', { text: tail })));
   }
 }
 
-// 首页提醒横幅：生日（人名库）、纪念日、生理期预测
+// 首页提醒横幅：纪念日（公历/农历）、生日、生理期、里程碑
+// 统一由 /api/reminders 提供，避免前端重复算农历/公历逻辑
 async function renderBanners() {
   const box = $('banners');
   box.innerHTML = '';
-  const banners = [];
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
   try {
-    // 纪念日（每年循环）
-    for (const md of (store.data.config.memorialDays || [])) {
-      if (!md.date) continue;
-      const d = new Date(md.date + 'T00:00:00');
-      if (isNaN(d)) continue;
-      let next = new Date(today.getFullYear(), d.getMonth(), d.getDate());
-      if (next < today) next = new Date(today.getFullYear() + 1, d.getMonth(), d.getDate());
-      const inDays = Math.round((next - today) / 86400000);
-      const years = next.getFullYear() - d.getFullYear();
-      if (inDays <= 30) {
-        const when = inDays === 0 ? '就是今天！' : `还有 ${inDays} 天`;
-        banners.push(el('div', { class: 'banner', text: '' },
-          '💘', el('span', null, `${md.name}（${years} 周年）`, el('b', { text: ' ' + when }))));
-      }
-    }
-    // 生日
-    const ppl = await get('/api/people');
-    for (const p of ppl) {
-      if (!p.birthday) continue;
-      const m = p.birthday.match(/(\d{1,2})-(\d{1,2})$/);
-      if (!m) continue;
-      let next = new Date(today.getFullYear(), parseInt(m[1]) - 1, parseInt(m[2]));
-      if (next < today) next = new Date(today.getFullYear() + 1, parseInt(m[1]) - 1, parseInt(m[2]));
-      const inDays = Math.round((next - today) / 86400000);
-      if (inDays <= 30) {
-        const when = inDays === 0 ? '就是今天！' : `还有 ${inDays} 天`;
-        banners.push(el('div', { class: 'banner cake' }, '🎂',
-          el('span', null, `${p.name}（${p.relation || 'TA身边的人'}）的生日`, el('b', { text: ' ' + when }))));
-      }
-    }
-    // 生理期预测
-    if (store.data.config.periodEnabled) {
-      const profileData = await get('/api/profile');
-      const cycles = (profileData.period && profileData.period.lastCycles || []).slice().sort();
-      if (cycles.length) {
-        const last = new Date(cycles[cycles.length - 1]);
-        const avg = profileData.period.avgDays || 28;
-        const nextP = new Date(last.getTime() + avg * 86400000);
-        const inDays = Math.round((nextP - today) / 86400000);
-        if (inDays >= 0 && inDays <= 3) {
-          banners.push(el('div', { class: 'banner period' }, '🌸',
-            el('span', null, '那几天快到了，多让着 TA、准备好红糖和热水', el('b', { text: inDays === 0 ? ' · 预计今天' : ` · 预计还有 ${inDays} 天` }))));
-        } else if (inDays < 0 && inDays >= -5) {
-          banners.push(el('div', { class: 'banner period' }, '🌸',
-            el('span', null, '可能正在经期中，温柔一点', el('b', { text: '' }))));
-        }
-      }
-    }
+    const r = await get('/api/reminders?days=30');
+    const icons = { birthday: '🎂', period: '🌸', milestone: '🎉', memorial: '💘' };
+    const cls = (it) => it.type === 'birthday' ? 'banner cake' : it.type === 'period' ? 'banner period' : 'banner';
+    const rows = (r.items || [])
+      .filter((it) => it.inDays >= 0)
+      .map((it) => {
+        const when = it.inDays === 0 ? '就是今天！' : `还有 ${it.inDays} 天`;
+        return el('div', { class: cls(it), text: '' },
+          icons[it.type] || '💘',
+          el('span', null, it.title + (it.sub ? ` · ${it.sub}` : ''), el('b', { text: ' ' + when })));
+      });
+    rows.forEach((b) => box.append(b));
   } catch (e) { /* 未登录等场景忽略 */ }
-  banners.forEach((b) => box.append(b));
 }
 
 /* ---------- 登录 ---------- */
@@ -174,6 +143,84 @@ function initLogin() {
     }
   };
   begin();
+}
+
+/* ---------- 深色模式 ---------- */
+function initTheme() {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  const apply = (theme) => {
+    document.documentElement.dataset.theme = theme;
+    $('themeBtn').textContent = theme === 'dark' ? '☀️' : '🌙';
+    if (meta) meta.content = theme === 'dark' ? '#171113' : '#e87b8e';
+  };
+  apply(document.documentElement.dataset.theme || 'light');
+  $('themeBtn').addEventListener('click', () => {
+    const next = (document.documentElement.dataset.theme === 'dark') ? 'light' : 'dark';
+    apply(next);
+    try { localStorage.setItem('vault-theme', next); } catch (e) {}
+  });
+}
+
+/* ---------- 提醒通知 ---------- */
+function initReminders() {
+  const btn = $('remindBtn');
+  const badge = el('span', { class: 'remind-badge', hidden: true });
+  btn.append(badge);
+
+  const notifyKey = () => 'vault-notified-' + new Date().toISOString().slice(0, 10);
+  const shownToday = () => { try { return JSON.parse(localStorage.getItem(notifyKey()) || '[]'); } catch (e) { return []; } };
+  const markShown = (id) => { try { localStorage.setItem(notifyKey(), JSON.stringify([...new Set([...shownToday(), id])])); } catch (e) {} };
+
+  const fireNative = (items) => {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const fresh = items.filter((it) => !shownToday().includes(it.id));
+    for (const it of fresh.slice(0, 3)) {
+      try {
+        new Notification('💕 ' + it.title, { body: it.sub || it.date, tag: it.id });
+        markShown(it.id);
+      } catch (e) { /* 部分浏览器要求用户手势后才能弹 */ }
+    }
+  };
+
+  // 铃铛点击：先请求通知权限，再弹当天事项
+  btn.addEventListener('click', async () => {
+    const all = store.data.reminders || [];
+    const today = all.filter((it) => it.inDays === 0);
+    if ('Notification' in window && Notification.permission === 'default') {
+      try { await Notification.requestPermission(); } catch (e) {}
+    }
+    if (today.length) {
+      fireNative(today);
+      const rows = el('div', { class: 'remind-list' },
+        ...today.map((it) => el('div', { class: 'remind-row' },
+          el('span', { class: 'remind-emoji', text: it.type === 'birthday' ? '🎂' : it.type === 'period' ? '🌸' : it.type === 'milestone' ? '🎉' : '💘' }),
+          el('div', null, el('div', { class: 'remind-title', text: it.title }), el('div', { class: 'remind-sub', text: it.sub || '就是今天' })))));
+      const md = openModal({
+        title: '今天 · ' + new Date().getMonth() + 1 + '月' + new Date().getDate() + '日', content: rows,
+        buttons: [{ el: el('button', { class: 'primary-btn', text: '好的，记住了', onclick: () => md.close() }) }]
+      });
+      for (const it of today) markShown(it.id);
+    } else {
+      toast(all.length ? '最近没有待办提醒，安安静静过好每一天 💕' : '还没有配置纪念日/生日，去设置里加一个吧', 'ok');
+    }
+  });
+
+  // 登录后拉一次提醒；today 的自动弹原生通知（当天去重）
+  store.on('needLogin', (v) => { if (v) return; });
+  const load = async () => {
+    try {
+      const r = await get('/api/reminders?days=30');
+      store.set('reminders', r.items || []);
+      const today = (r.items || []).filter((it) => it.inDays === 0);
+      badge.hidden = today.length === 0;
+      if (today.length) badge.textContent = String(today.length);
+      if ('Notification' in window && Notification.permission === 'granted' && document.visibilityState === 'visible') {
+        fireNative(today);
+      }
+    } catch (e) { /* 未登录等情况忽略 */ }
+  };
+  load();
+  setInterval(load, 30 * 60 * 1000); // 每半小时刷新
 }
 
 /* ---------- 背景音乐 ---------- */
@@ -333,9 +380,13 @@ async function openSettings() {
     days.forEach((d, i) => {
       const name = input({ type: 'text', value: d.name, placeholder: '名字' });
       const date = input({ type: 'date', value: d.date });
+      const lunarChk = el('input', { type: 'checkbox', id: 'lunar-' + i });
+      lunarChk.checked = !!d.lunar;
+      const lunarLabel = el('label', { class: 'lunar-chk', for: 'lunar-' + i }, lunarChk, el('span', { text: '农历' }));
       name.addEventListener('change', () => { days[i].name = name.value; });
       date.addEventListener('change', () => { days[i].date = date.value; });
-      memorialRows.append(el('div', { class: 'memorial-edit-row' }, name, date,
+      lunarChk.addEventListener('change', () => { days[i].lunar = lunarChk.checked; });
+      memorialRows.append(el('div', { class: 'memorial-edit-row' }, name, date, lunarLabel,
         el('button', { class: 'cf-del', text: '✕', onclick: () => { days.splice(i, 1); renderRows(); } })));
     });
   };
@@ -381,6 +432,38 @@ async function openSettings() {
     }
   });
 
+  // —— 数据区（导出 / 导入备份） ——
+  const exportBtn = el('a', {
+    class: 'ghost-btn', href: '/api/transfer/export', download: '', text: '⬇ 导出备份 zip'
+  });
+  const importFile = input({ type: 'file', accept: '.zip,application/zip', hidden: true });
+  const importBtn = el('button', {
+    class: 'ghost-btn', text: '⬆ 导入备份', onclick: () => importFile.click()
+  });
+  const dataStatus = el('div', { class: 'ai-status-line', text: '' });
+  importFile.addEventListener('change', async () => {
+    const file = importFile.files[0];
+    importFile.value = '';
+    if (!file) return;
+    if (!confirm('导入会覆盖当前全部数据，确定继续吗？（建议先导出一份备份）')) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    dataStatus.textContent = '导入中…';
+    dataStatus.className = 'ai-status-line';
+    try {
+      const r = await fetch('/api/transfer/import', { method: 'POST', body: fd });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) { dataStatus.textContent = '✗ ' + (body.error || '导入失败'); dataStatus.className = 'ai-status-line bad'; return; }
+      dataStatus.textContent = `✓ 已恢复 ${body.dataFiles.length} 个数据文件，补齐 ${body.mediaCopied} 个媒体文件`;
+      dataStatus.className = 'ai-status-line ok';
+      toast('导入完成，正在刷新…');
+      setTimeout(() => location.reload(), 800);
+    } catch (e) {
+      dataStatus.textContent = '✗ ' + e.message;
+      dataStatus.className = 'ai-status-line bad';
+    }
+  });
+
   const m = openModal({
     title: '设置 ⚙', wide: true,
     content: el('div', null,
@@ -401,6 +484,11 @@ async function openSettings() {
           field('允许读取生理期信息', sAiPeriod)
         ),
         el('div', { class: 'modal-foot', style: 'justify-content:flex-start;margin-top:4px' }, testAi, aiStatusLine)
+      ),
+      el('div', { class: 'settings-section' },
+        el('h4', { text: '数据（全部记忆都在 data/ 目录，此处可打包带走）' }),
+        el('div', { class: 'data-actions', style: 'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px' }, exportBtn, importBtn, importFile),
+        el('div', { style: 'margin-top:8px' }, dataStatus)
       )
     ),
     buttons: [

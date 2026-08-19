@@ -24,8 +24,15 @@ const peopleRouter = (c) => collectionRouter(c, (b) => ({
   relation: str(b.relation),
   group: inEnum(b.group, PEOPLE_GROUP),
   birthday: str(b.birthday),           // 形如 03-14 或 1998-03-14
+  lunar: bool(b.lunar),                // 生日按农历过
   howMet: str(b.howMet),               // 相识故事
   notes: str(b.notes)
+}));
+
+// ---------- 相册（照片/视频分组） ----------
+const albumsRouter = (c) => collectionRouter(c, (b) => ({
+  name: str(b.name),
+  description: str(b.description)
 }));
 
 // ---------- 大事记 ----------
@@ -240,6 +247,7 @@ function memoriesRouter(collection) {
     if (typeof b.note === 'string') mem.note = b.note.trim();
     if (typeof b.location === 'string') mem.location = b.location.trim();
     if (typeof b.eventId === 'string' || b.eventId === null) mem.eventId = b.eventId;
+    if (typeof b.albumId === 'string' || b.albumId === null) mem.albumId = b.albumId;
     if (Array.isArray(b.tags)) mem.tags = b.tags.filter((t) => typeof t === 'string' && t.trim()).map((t) => t.trim());
     if (typeof b.takenAt === 'string' && b.takenAt) mem.takenAt = new Date(b.takenAt).toISOString();
     await resolve(req).update(mem.id, {});
@@ -285,7 +293,7 @@ async function ensureIndex(collection, mediaDir, thumbDir) {
 }
 
 module.exports = {
-  preferencesRouter, peopleRouter, eventsRouter, wishesRouter, giftsRouter,
+  preferencesRouter, peopleRouter, eventsRouter, wishesRouter, giftsRouter, albumsRouter,
   profileRouter, memoriesRouter, ensureIndex, PROFILE_DEFAULT,
   PREF_POLARITY, PREF_CATEGORY, PEOPLE_GROUP, EVENT_TYPE, WISH_STATUS, WISH_PRIORITY, GIFT_DIRECTION
 };

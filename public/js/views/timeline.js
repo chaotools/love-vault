@@ -1,16 +1,17 @@
 // 时间轴视图：照片 + 视频 + 文字大事记 按月混排
-import { el, get, post, patch, del, toast, openModal, openLightbox, field, input, textarea, select, fmtDate, fmtDay, fmtDuration, toLocalInput, emptyState, mediaPreview } from '../core.js';
+import { el, get, post, patch, del, toast, openModal, field, input, textarea, select, fmtDate, fmtDay, fmtDuration, toLocalInput, emptyState, mediaPreview } from '../core.js';
 
 let memories = [];
 let events = [];
-let filter = { type: 'all', year: 'all' };
+let albums = [];
+let filter = { type: 'all', year: 'all', album: 'all' };
 let viewEl = null;
 
-export async function render(container) {
+export async function render(container, params) {
   viewEl = container;
   container.innerHTML = '';
   try {
-    [memories, events] = await Promise.all([get('/api/memories'), get('/api/events')]);
+    [memories, events, albums] = await Promise.all([get('/api/memories'), get('/api/events'), get('/api/albums')]);
   } catch (e) { container.append(emptyState('🔒', '请先登录')); return; }
   build();
 }
@@ -32,6 +33,29 @@ function build() {
     } catch (err) { toast(err.message, 'err'); }
   });
   page.append(el('div', { class: 'quick-note-bar' }, el('span', { text: '✎' }), quick));
+
+  // 相册分组
+  const albumChips = el('div', { class: 'album-chips' });
+  const renderAlbumChips = () => {
+    albumChips.innerHTML = '';
+    const pick = (value, label, icon) => {
+      const b = el('button', {
+        class: 'album-chip' + (filter.album === value ? ' active' : ''),
+        text: icon + ' ' + label,
+        onclick: () => { filter.album = value; renderAlbumChips(); buildList(); }
+      });
+      return b;
+    };
+    albumChips.append(pick('all', '全部', '📁'), pick('none', '未分组', '🗂'));
+    for (const a of albums) {
+      const n = memories.filter((m) => m.albumId === a.id).length;
+      albumChips.append(pick(a.id, `${a.name} ${n}`, '💗'));
+    }
+    albumChips.append(el('button', { class: 'album-chip add', text: '＋ 新建相册', onclick: createAlbum }));
+    if (albums.length) albumChips.append(el('button', { class: 'album-chip manage', text: '管理', onclick: manageAlbums }));
+  };
+  renderAlbumChips();
+  page.append(albumChips);
 
   // 筛选
   const seg = el('div', { class: 'seg' },
@@ -69,6 +93,10 @@ function buildList() {
     if (filter.type !== 'all') {
       if (filter.type === 'event' && it.kind !== 'event') return false;
       if (filter.type !== 'event' && (it.kind !== 'media' || it.m.type !== filter.type)) return false;
+    }
+    if (filter.album !== 'all') {
+      if (it.kind !== 'media') return false;
+      if (filter.album === 'none' ? it.m.albumId : it.m.albumId !== filter.album) return false;
     }
     if (filter.year !== 'all' && String(new Date(it.date).getFullYear()) !== filter.year) return false;
     return true;
@@ -136,9 +164,11 @@ function editMemory(m) {
   const nInput = input({ type: 'text', value: m.note || '', placeholder: '写下这一刻…' });
   const tInput = input({ type: 'text', value: (m.tags || []).join(', '), placeholder: '旅行, 生日, 日常' });
   const lInput = input({ type: 'text', value: m.location || '', placeholder: '比如：厦门 · 鼓浪屿' });
+  const albumSel = select([['', '未分组'], ...albums.map((a) => [a.id, a.name])], m.albumId || '', {});
   const md = openModal({
     title: '编辑记忆', content: el('div', null,
-      field('拍摄时间', dInput), field('备注', nInput), field('标签（逗号分隔）', tInput), field('地点', lInput)),
+      field('拍摄时间', dInput), field('备注', nInput), field('标签（逗号分隔）', tInput), field('地点', lInput),
+      field('相册', albumSel)),
     buttons: [
       { el: el('button', { class: 'ghost-btn', text: '取消', onclick: () => md.close() }) },
       { el: el('button', { class: 'primary-btn', text: '保存', onclick: async () => {
@@ -146,7 +176,7 @@ function editMemory(m) {
           const updated = await patch('/api/memories/' + m.id, {
             takenAt: dInput.value ? new Date(dInput.value).toISOString() : undefined,
             note: nInput.value, tags: tInput.value.split(',').map((s) => s.trim()).filter(Boolean),
-            location: lInput.value
+            location: lInput.value, albumId: albumSel.value || null
           });
           const i = memories.findIndex((x) => x.id === m.id);
           if (i !== -1) memories[i] = { ...memories[i], ...updated };
@@ -171,6 +201,66 @@ async function deleteMemory(m) {
 function closeLightboxSafe() {
   const lb = document.getElementById('lightbox');
   if (lb._close) lb._close(); else lb.hidden = true;
+}
+
+/* 相册：新建 / 管理（重命名、删除） */
+function createAlbum() {
+  const nameInput = input({ type: 'text', placeholder: '相册名，如：厦门旅行 / 2026 日常' });
+  const descInput = input({ type: 'text', placeholder: '一句话说明（可空）' });
+  const md = openModal({
+    title: '新建相册', content: el('div', null, field('相册名', nameInput), field('说明', descInput)),
+    buttons: [
+      { el: el('button', { class: 'ghost-btn', text: '取消', onclick: () => md.close() }) },
+      { el: el('button', { class: 'primary-btn', text: '创建', onclick: async () => {
+        if (!nameInput.value.trim()) { toast('相册名不能为空', 'err'); return; }
+        try {
+          await post('/api/albums', { name: nameInput.value.trim(), description: descInput.value.trim() });
+          albums = await get('/api/albums');
+          md.close(); renderAlbumChipsSafe(); toast('已创建相册 💕');
+        } catch (e) { toast(e.message, 'err'); }
+      } }) }
+    ]
+  });
+  setTimeout(() => nameInput.focus(), 60);
+}
+
+function manageAlbums() {
+  const list = el('div', { class: 'album-manage-list' });
+  const renderList = () => {
+    list.innerHTML = '';
+    if (!albums.length) { list.append(el('p', { style: 'font-size:13px;color:var(--muted)', text: '还没有相册' })); return; }
+    for (const a of albums) {
+      const nameInput = input({ type: 'text', value: a.name });
+      const row = el('div', { class: 'album-manage-row' },
+        nameInput,
+        el('button', { class: 'small-btn', text: '改名', onclick: async () => {
+          if (!nameInput.value.trim()) { toast('相册名不能为空', 'err'); return; }
+          await patch('/api/albums/' + a.id, { name: nameInput.value.trim() });
+          albums = await get('/api/albums');
+          toast('已改名');
+        } }),
+        el('button', { class: 'cf-del', title: '删除相册（照片不删除）', text: '✕', onclick: async () => {
+          if (!confirm(`删除相册「${a.name}」？里面的照片会移回未分组，不会删除照片。`)) return;
+          await del('/api/albums/' + a.id);
+          for (const m of memories.filter((x) => x.albumId === a.id)) {
+            m.albumId = null;
+            await patch('/api/memories/' + m.id, { albumId: null });
+          }
+          albums = await get('/api/albums');
+          renderList(); renderAlbumChipsSafe(); buildList();
+        } }));
+      list.append(row);
+    }
+  };
+  renderList();
+  const md = openModal({
+    title: '管理相册', content: list, buttons: [{ el: el('button', { class: 'primary-btn', text: '完成', onclick: () => { md.close(); } }) }]
+  });
+}
+
+function renderAlbumChipsSafe() {
+  // 相册条在 build() 内以快照生成，统一重建整个视图最稳妥
+  build();
 }
 
 /* 大事记卡片：点击看全文和关联照片 */
@@ -308,6 +398,13 @@ function openUpload() {
     xhr.onload = async () => {
       if (xhr.status === 200) {
         const data = JSON.parse(xhr.responseText);
+        // 若当前在看某个相册，新上传的照片自动归入该相册
+        if (filter.album && filter.album !== 'all' && filter.album !== 'none') {
+          for (const item of data.items) {
+            const updated = await patch('/api/memories/' + item.id, { albumId: filter.album });
+            Object.assign(item, updated);
+          }
+        }
         for (const item of data.items) memories.push(item);
         memories.sort((a, b) => (b.takenAt || '').localeCompare(a.takenAt || ''));
         build(); renderFAB();

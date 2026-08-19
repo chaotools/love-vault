@@ -12,9 +12,11 @@
     "node": ">=20.9"
   },
   "dependencies": {
+    "archiver": "^7.0.1",
     "express": "^4.21.2",
     "multer": "^2.0.1",
     "qrcode": "^1.5.4",
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.3",
+    "unzipper": "^0.12.5"
   }
 }

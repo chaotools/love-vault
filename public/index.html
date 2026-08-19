@@ -8,6 +8,14 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <title>爱人记忆库</title>
   <link rel="stylesheet" href="/style.css">
+  <script>
+    // 首屏前应用主题，避免深色模式闪烁
+    try {
+      var t = localStorage.getItem('vault-theme');
+      if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  </script>
 </head>
 <body>
   <!-- 小程序扫码登录；静态壳可公开，任何数据接口都需要会话。 -->
@@ -34,6 +42,8 @@
     <div class="toolbar-actions">
       <button class="icon-btn" id="quickNoteBtn" title="随手记">✎</button>
       <button class="icon-btn" id="musicBtn" title="背景音乐" hidden>♫</button>
+      <button class="icon-btn" id="remindBtn" title="今日提醒">🔔</button>
+      <button class="icon-btn" id="themeBtn" title="切换深色 / 浅色">🌙</button>
       <button class="icon-btn" id="settingsBtn" title="设置">⚙</button>
     </div>
   </header>
@@ -46,6 +56,7 @@
     <a href="#/people" data-route="people">人名</a>
     <a href="#/events" data-route="events">大事记</a>
     <a href="#/wishes" data-route="wishes">愿望&礼物</a>
+    <a href="#/stats" data-route="stats">统计</a>
     <a href="#/ask" data-route="ask" id="navAsk" hidden>AI问答</a>
   </nav>
 
@@ -56,6 +67,7 @@
       <div class="hero-avatar">💑</div>
       <h1 class="hero-title" id="heroTitle">爱人记忆库</h1>
       <p class="hero-names" id="heroNames"></p>
+      <div class="hero-lunar" id="heroLunar"></div>
       <div class="days-box" id="daysBox" hidden>
         <div class="days-num" id="daysNum">--</div>
         <div class="days-unit">在 一 起</div>
