@@ -90,13 +90,20 @@ function router() {
       res.json(body);
     } catch { res.status(503).json({ error: '登录服务暂时不可用' }); }
   });
-  r.get('/web-login/status', async (req, res) => {
+  // 用 POST body 传登录会话信息：secret 放在查询串会被反向代理/网关记进访问日志
+  r.post('/web-login/status', express.json(), async (req, res) => {
     const broker = process.env.AUTH_BROKER_URL || '';
-    const id = encodeURIComponent(String(req.query.id || '')); const secretValue = encodeURIComponent(String(req.query.secret || ''));
+    const body = req.body || {};
+    const id = String(body.id || '');
+    const secretValue = String(body.secret || '');
     if (!broker || !id || !secretValue) return res.status(400).json({ error: '登录会话无效' });
     try {
-      const response = await fetch(broker.replace(/\/$/, '') + `/web-login/status?loginId=${id}&secret=${secretValue}`);
-      const body = await response.json(); res.status(response.status).json(body);
+      const response = await fetch(broker.replace(/\/$/, '') + '/web-login/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, secret: secretValue })
+      });
+      const body2 = await response.json(); res.status(response.status).json(body2);
     } catch { res.status(503).json({ error: '登录服务暂时不可用' }); }
   });
   r.post('/web-exchange', express.json(), async (req, res) => {

@@ -48,13 +48,20 @@ function searchRouter(getData) {
       if ([it.title, it.occasion, it.note].join(' ').toLowerCase().includes(q))
         push('gifts', it.id, it.title, '礼物 · ' + it.direction);
     }
+    for (const it of (d.albums || [])) {
+      const hay = [it.name, it.description].join(' ').toLowerCase();
+      if (hay.includes(q)) {
+        const count = (d.memories || []).filter((m) => m.albumId === it.id).length;
+        push('albums', it.id, it.name, '相册 · ' + count + ' 张');
+      }
+    }
     for (const md of (d.config.memorialDays || [])) {
       if ((md.name + ' ' + md.date).toLowerCase().includes(q)) push('config', md.name, md.name, '纪念日 · ' + md.date);
     }
 
     // 按模块分组，组内最多 8 条
-    const order = ['memories', 'profile', 'preferences', 'people', 'events', 'wishes', 'gifts', 'config'];
-    const names = { memories: '照片视频', profile: 'TA的档案', preferences: '喜好', people: '人名', events: '大事记', wishes: '愿望', gifts: '礼物', config: '纪念日' };
+    const order = ['memories', 'profile', 'preferences', 'people', 'events', 'wishes', 'gifts', 'albums', 'config'];
+    const names = { memories: '照片视频', profile: 'TA的档案', preferences: '喜好', people: '人名', events: '大事记', wishes: '愿望', gifts: '礼物', albums: '相册', config: '纪念日' };
     const groups = order
       .map((mod) => ({ module: mod, name: names[mod], items: hits.filter((h) => h.module === mod).slice(0, 8) }))
       .filter((g) => g.items.length);

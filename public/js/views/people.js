@@ -77,7 +77,7 @@ function buildGrid() {
           el('div', { class: 'person-name', text: p.name }),
           el('div', { class: 'person-relation', text: p.relation || '' }))),
       el('span', { class: 'person-tag g-' + (p.group || '其他'), text: p.group || '其他' }),
-      p.birthday ? el('div', { class: 'person-bday' + (soon ? ' soon' : ''), text: '🎂 ' + p.birthday + (p.lunar ? '（农历）' : '') }) : null,
+      p.birthday ? el('div', { class: 'person-bday' + (soon ? ' soon' : ''), text: '🎂 ' + p.birthday + (p.lunar ? (p.leap ? '（农历·闰月）' : '（农历）') : '') }) : null,
       p.howMet ? el('div', { class: 'person-notes', text: '相识：' + p.howMet }) : null,
       p.notes ? el('div', { class: 'person-notes', text: p.notes }) : null));
   }
@@ -91,6 +91,17 @@ function editPerson(p) {
   const lunarChk = el('input', { type: 'checkbox', id: 'pLunar' });
   lunarChk.checked = !!(p && p.lunar);
   const lunarLabel = el('label', { class: 'lunar-chk' }, lunarChk, el('span', { text: '按农历过生日' }));
+  const leapChk = el('input', { type: 'checkbox' });
+  leapChk.checked = !!(p && p.leap);
+  leapChk.disabled = !lunarChk.checked;
+  const leapLabel = el('label', { class: 'lunar-chk' }, leapChk, el('span', { text: '闰月生日' }));
+  lunarChk.addEventListener('change', () => {
+    birthday.placeholder = lunarChk.checked ? '农历月-日，如 03-02（三月初二）' : '03-14 或 1998-03-14';
+    if (!lunarChk.checked) leapChk.checked = false;
+    leapChk.disabled = !lunarChk.checked;
+  });
+  if (lunarChk.checked) birthday.placeholder = '农历月-日，如 03-02（三月初二）';
+  const lunarRow = el('div', { class: 'lunar-chk-row' }, lunarLabel, leapLabel);
   const howMet = input({ type: 'text', value: p ? p.howMet : '', placeholder: '怎么认识/交集，如：TA的高中同桌' });
   const notes = textarea({ placeholder: 'TA提过的八卦、喜好、要注意的点…（可空）' }, p ? p.notes : '');
 
@@ -98,7 +109,7 @@ function editPerson(p) {
     title: p ? '编辑 ' + p.name : '加一个人',
     content: el('div', null,
       field('称呼', name), field('关系', relation), field('分组', group),
-      field('生日', birthday), lunarLabel, field('相识', howMet), field('备注', notes)),
+      field('生日', birthday), lunarRow, field('相识', howMet), field('备注', notes)),
     buttons: [
       p ? { el: el('button', { class: 'ghost-btn danger', text: '删除', onclick: async () => {
         if (!confirm(`删除「${p.name}」？`)) return;
@@ -111,7 +122,7 @@ function editPerson(p) {
         if (!name.value.trim()) { toast('称呼不能为空', 'err'); return; }
         const body = {
           name: name.value.trim(), relation: relation.value.trim(), group: group.value,
-          birthday: birthday.value.trim(), lunar: lunarChk.checked,
+          birthday: birthday.value.trim(), lunar: lunarChk.checked, leap: lunarChk.checked && leapChk.checked,
           howMet: howMet.value.trim(), notes: notes.value.trim()
         };
         if (p) {

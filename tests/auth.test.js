@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { requireAuth } = require('../src/auth');
+const express = require('express');
+const { requireAuth, router } = require('../src/auth');
 
 function run(middleware, headers = {}) {
   let nextCalled = false;
@@ -27,4 +28,44 @@ test('internal requests need both the service token and a valid opaque user id',
 
   if (previous === undefined) delete process.env.MOBILE_SERVICE_TOKEN;
   else process.env.MOBILE_SERVICE_TOKEN = previous;
+});
+
+test('web login status forwards its secret in a JSON POST body, never in the broker URL', async () => {
+  const previousBroker = process.env.AUTH_BROKER_URL;
+  const originalFetch = global.fetch;
+  const calls = [];
+  const app = express();
+  app.use('/api/auth', router());
+  const server = await new Promise((resolve) => {
+    const value = app.listen(0, () => resolve(value));
+  });
+
+  try {
+    process.env.AUTH_BROKER_URL = 'https://broker.example/api/love-vault';
+    global.fetch = async (url, options) => {
+      calls.push({ url, options });
+      return new Response(JSON.stringify({ status: 'pending' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    };
+
+    const response = await originalFetch(`http://127.0.0.1:${server.address().port}/api/auth/web-login/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'login-id', secret: 'secret-value' })
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { status: 'pending' });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, 'https://broker.example/api/love-vault/web-login/status');
+    assert.ok(!calls[0].url.includes('secret'));
+    assert.equal(calls[0].options.method, 'POST');
+    assert.deepEqual(JSON.parse(calls[0].options.body), { id: 'login-id', secret: 'secret-value' });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    global.fetch = originalFetch;
+    if (previousBroker === undefined) delete process.env.AUTH_BROKER_URL;
+    else process.env.AUTH_BROKER_URL = previousBroker;
+  }
 });

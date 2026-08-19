@@ -19,30 +19,51 @@ function computeReminders(data, opts = {}) {
   const config = data.config || {};
   const profile = data.profile || {};
   const items = [];
-  const push = (type, id, title, sub, date) => {
+  const push = (type, id, title, sub, date, opts = {}) => {
+    const minInDays = opts.minInDays !== undefined ? opts.minInDays : 0;
     const inDays = daysBetween(today, date);
-    if (inDays < 0 || inDays > daysAhead) return;
-    items.push({ type, id, title, sub, date: lunar.toDateStr(date), inDays });
+    if (inDays < minInDays || inDays > daysAhead) return;
+    items.push({ type, id, title, sub, date: lunar.toDateStr(date), inDays, ...(opts.active ? { active: true } : {}) });
   };
 
-  // 纪念日（配置里可标农历，农历按"每年最近一次"推算；闰月场景暂不细分）
+  // 纪念日（可标农历与闰月；闰月精确匹配，当年无对应闰月时按平月提醒并在文案说明）
   for (const md of config.memorialDays || []) {
     const ref = lunar.parseMonthDay(md.date);
     if (!ref) continue;
-    const next = md.lunar
-      ? lunar.nextLunarMonthDay(ref.month, ref.day, false, today)
-      : lunar.nextSolarMonthDay(ref.month, ref.day, today);
-    if (next) push('memorial', 'md-' + md.name, md.name, md.lunar ? '农历纪念日' : '纪念日', next);
+    let next = null;
+    let sub = '纪念日';
+    if (md.lunar) {
+      const leap = md.leap === true;
+      next = lunar.nextLunarMonthDay(ref.month, ref.day, leap, today);
+      if (next) sub = '农历纪念日';
+      else if (leap) {
+        next = lunar.nextLunarMonthDay(ref.month, ref.day, false, today);
+        sub = '农历纪念日（本年按平月）';
+      }
+    } else {
+      next = lunar.nextSolarMonthDay(ref.month, ref.day, today);
+    }
+    if (next) push('memorial', 'md-' + md.name, md.name, sub, next);
   }
 
-  // 人名生日（支持农历）
+  // 人名生日（支持农历与闰月；闰月当年缺席时按平月提醒，文案如实说明）
   for (const p of (data.people || [])) {
     const ref = lunar.parseMonthDay(p.birthday);
     if (!ref) continue;
-    const next = p.lunar
-      ? lunar.nextLunarMonthDay(ref.month, ref.day, false, today)
-      : lunar.nextSolarMonthDay(ref.month, ref.day, today);
-    if (next) push('birthday', 'p-' + p.id, p.name + ' 的生日', p.lunar ? '农历生日' : '生日', next);
+    let next = null;
+    let sub = '生日';
+    if (p.lunar) {
+      const leap = p.leap === true;
+      next = lunar.nextLunarMonthDay(ref.month, ref.day, leap, today);
+      if (next) sub = '农历生日';
+      else if (leap) {
+        next = lunar.nextLunarMonthDay(ref.month, ref.day, false, today);
+        sub = '农历生日（本年按平月）';
+      }
+    } else {
+      next = lunar.nextSolarMonthDay(ref.month, ref.day, today);
+    }
+    if (next) push('birthday', 'p-' + p.id, p.name + ' 的生日', sub, next);
   }
 
   // 生理期预测
@@ -51,7 +72,13 @@ function computeReminders(data, opts = {}) {
     const last = new Date(period.lastCycles.slice().sort().pop());
     if (!isNaN(last.getTime())) {
       const next = new Date(lunar.startOfDay(last).getTime() + (period.avgDays || 28) * DAY);
-      push('period', 'period', '预计生理期', '温柔一点，提前准备好红糖热水', next);
+      const inDays = daysBetween(today, next);
+      if (inDays >= 0) {
+        push('period', 'period', '预计生理期', '温柔一点，提前准备好红糖热水', next);
+      } else if (inDays > -6) {
+        // 预测日刚过去：很可能正在经期中，反而最需要温柔提醒（负窗口专用条目）
+        push('period', 'period', '可能正在经期中', '多一点理解和红糖热水', next, { minInDays: -31, active: true });
+      }
     }
   }
 

@@ -788,6 +788,8 @@ body::before {
 .lunar-chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-light); cursor: pointer; margin: 10px 0 4px; user-select: none; }
 .lunar-chk input { accent-color: var(--rose); width: 15px; height: 15px; }
 .memorial-edit-row .lunar-chk { margin: 0; flex-shrink: 0; }
+.lunar-chk-row { display: inline-flex; gap: 14px; align-items: center; margin: 10px 0 4px; }
+.lunar-chk-row .lunar-chk { margin: 0; }
 
 .album-manage-list { display: flex; flex-direction: column; gap: 8px; }
 .album-manage-row { display: flex; gap: 8px; align-items: center; }

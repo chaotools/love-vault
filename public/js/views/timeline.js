@@ -13,8 +13,19 @@ export async function render(container, params) {
   try {
     [memories, events, albums] = await Promise.all([get('/api/memories'), get('/api/events'), get('/api/albums')]);
   } catch (e) { container.append(emptyState('🔒', '请先登录')); return; }
+  // 从全局搜索/相册链接跳转过来时，直接选中对应相册
+  if (params && params.album && albums.some((a) => a.id === params.album)) {
+    filter.album = params.album;
+  }
   build();
 }
+
+// 当前已在时间轴页时，全局搜索点相册结果改由事件驱动切换筛选
+window.addEventListener('vault:focus-album', (e) => {
+  if (!viewEl) return;
+  if (albums.some((a) => a.id === e.detail)) filter.album = e.detail;
+  build();
+});
 
 function build() {
   viewEl.innerHTML = '';

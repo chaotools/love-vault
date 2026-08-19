@@ -69,9 +69,12 @@ export function daysUntil(target, from) {
   return Math.round((startOfDay(target) - startOfDay(from)) / DAY);
 }
 
-// 纪念日/生日统一换算：按是否农历算出下一次日期
-export function nextOccurrence(dateStr, lunar, from) {
+// 纪念日/生日统一换算：按是否农历（含闰月位）算出下一次日期
+export function nextOccurrence(dateStr, lunar, leap, from) {
   const ref = parseMonthDay(dateStr);
   if (!ref) return null;
-  return lunar ? nextLunarMonthDay(ref.month, ref.day, false, from) : nextSolarMonthDay(ref.month, ref.day, from);
+  if (!lunar) return nextSolarMonthDay(ref.month, ref.day, from);
+  // 闰月精确匹配；当年没有对应闰月时回退到平月（与后端 reminders 一致）
+  return nextLunarMonthDay(ref.month, ref.day, leap === true, from)
+    || nextLunarMonthDay(ref.month, ref.day, false, from);
 }
