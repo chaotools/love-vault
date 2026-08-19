@@ -99,9 +99,59 @@ function computeReminders(data, opts = {}) {
   }
 
   items.sort((a, b) => a.inDays - b.inDays);
+
+  // —— 记录活跃 ——
+  // 所有可记录模块的 createdAt 都算"一次记录"；连续天数 = 从今天往前数，
+  // 每一天至少有一条记录才算连续。
+  const activityCollections = ['preferences', 'people', 'events', 'wishes', 'gifts', 'memories'];
+  const recordDates = new Set();
+  for (const key of activityCollections) {
+    const list = data[key] || [];
+    for (const item of list) {
+      if (item && item.createdAt) {
+        const d = new Date(item.createdAt);
+        if (!isNaN(d.getTime())) recordDates.add(lunar.toDateStr(lunar.startOfDay(d)));
+      }
+    }
+  }
+  // 最近一次记录
+  let lastRecordAt = null;
+  if (recordDates.size) {
+    const sorted = [...recordDates].sort();
+    lastRecordAt = sorted[sorted.length - 1];
+  }
+  // 连续记录天数（含今天，若今天还没记则从昨天开始算）
+  let streak = 0;
+  let cursorDate = today;
+  const dayStr = (d) => lunar.toDateStr(d);
+  if (!recordDates.has(dayStr(today))) cursorDate = new Date(today.getTime() - DAY);
+  while (recordDates.has(dayStr(cursorDate))) {
+    streak++;
+    cursorDate = new Date(cursorDate.getTime() - DAY);
+  }
+  // 本月记录条数
+  const thisMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  let monthCount = 0;
+  for (const key of activityCollections) {
+    const list = data[key] || [];
+    for (const item of list) {
+      if (item && item.createdAt) {
+        const d = new Date(item.createdAt);
+        if (!isNaN(d.getTime()) && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === thisMonthKey) monthCount++;
+      }
+    }
+  }
+  const activity = {
+    lastRecordAt,
+    streak,
+    monthCount,
+    daysSinceLastRecord: lastRecordAt ? daysBetween(new Date(lastRecordAt), today) : null
+  };
+
   return {
     today: { date: lunar.toDateStr(today), lunar: lunar.lunarDateText(now) },
-    items
+    items,
+    activity
   };
 }
 
