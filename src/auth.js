@@ -94,11 +94,15 @@ function router() {
   r.post('/web-login/status', express.json(), async (req, res) => {
     const broker = process.env.AUTH_BROKER_URL || '';
     const body = req.body || {};
-    const id = encodeURIComponent(String(body.id || ''));
-    const secretValue = encodeURIComponent(String(body.secret || ''));
+    const id = String(body.id || '');
+    const secretValue = String(body.secret || '');
     if (!broker || !id || !secretValue) return res.status(400).json({ error: '登录会话无效' });
     try {
-      const response = await fetch(broker.replace(/\/$/, '') + `/web-login/status?loginId=${id}&secret=${secretValue}`);
+      const response = await fetch(broker.replace(/\/$/, '') + '/web-login/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, secret: secretValue })
+      });
       const body2 = await response.json(); res.status(response.status).json(body2);
     } catch { res.status(503).json({ error: '登录服务暂时不可用' }); }
   });

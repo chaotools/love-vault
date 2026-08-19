@@ -43,7 +43,10 @@ function configRouter(store, save) {
     if (Array.isArray(b.memorialDays)) {
       config.memorialDays = b.memorialDays
         .filter((m) => m && typeof m.name === 'string' && typeof m.date === 'string')
-        .map((m) => ({ name: m.name.trim(), date: m.date, lunar: Boolean(m.lunar), leap: Boolean(m.leap) }));
+        .map((m) => {
+          const lunar = Boolean(m.lunar);
+          return { name: m.name.trim(), date: m.date, lunar, leap: lunar && Boolean(m.leap) };
+        });
     }
     if (b.ai && typeof b.ai === 'object') {
       if (typeof b.ai.apiKey === 'string' && b.ai.apiKey.trim() && process.env.NODE_ENV === 'production' && !encryptionEnabled()) {
