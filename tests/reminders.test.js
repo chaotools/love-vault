@@ -75,3 +75,43 @@ test('关闭生理期后不出现该提醒', () => {
   const { items } = computeReminders(data({ config: { anniversary: '', periodEnabled: false, memorialDays: [], people: [] } }), { now: NOW });
   assert.equal(items.find((it) => it.id === 'period'), undefined);
 });
+
+test('预测日已过 3 天：给出“正在经期中”的进行中提醒（active 条目）', () => {
+  const during = computeReminders({
+    config: { periodEnabled: true, memorialDays: [], anniversary: '' },
+    profile: { period: { enabled: true, lastCycles: ['2026-07-19T00:00:00.000Z'], avgDays: 28 } },
+    people: []
+  }, { now: NOW });
+  const hit = during.items.find((it) => it.id === 'period');
+  assert.ok(hit, '经期中提醒应出现');
+  assert.equal(hit.active, true);
+  assert.equal(hit.inDays, -3);
+  assert.equal(hit.title, '可能正在经期中');
+});
+
+test('预测日已过 10 天：不做经期中提醒（已出窗口）', () => {
+  const out = computeReminders({
+    config: { periodEnabled: true, memorialDays: [], anniversary: '' },
+    profile: { period: { enabled: true, lastCycles: ['2026-07-11T00:00:00.000Z'], avgDays: 28 } },
+    people: []
+  }, { now: NOW });
+  assert.equal(out.items.find((it) => it.id === 'period'), undefined);
+});
+
+test('闰月生日：当年无对应闰月时按平月提醒，并在文案说明', () => {
+  const { items } = computeReminders(data({
+    people: [{ id: 'c', name: '宝宝', birthday: '02-01', lunar: true, leap: true }]
+  }), { now: NOW, daysAhead: 400 });
+  const hit = items.find((it) => it.id === 'p-c');
+  assert.ok(hit, '闰月生日应有提醒');
+  assert.equal(hit.sub, '农历生日（本年按平月）');
+  assert.ok(hit.inDays > 0, '下一次应落在未来的平月那天');
+});
+
+test('普通农历生日不受闰月逻辑影响', () => {
+  // 农历七月十五 ≈ 2026-08-27，恰在 30 天提醒窗口内
+  const { items } = computeReminders(data({ people: [{ id: 'd', name: '奶奶', birthday: '07-15', lunar: true }] }), { now: NOW });
+  const hit = items.find((it) => it.id === 'p-d');
+  assert.ok(hit);
+  assert.equal(hit.sub, '农历生日');
+});

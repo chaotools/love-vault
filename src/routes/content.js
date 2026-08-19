@@ -25,6 +25,7 @@ const peopleRouter = (c) => collectionRouter(c, (b) => ({
   group: inEnum(b.group, PEOPLE_GROUP),
   birthday: str(b.birthday),           // 形如 03-14 或 1998-03-14
   lunar: bool(b.lunar),                // 生日按农历过
+  leap: bool(b.leap),                  // 闰月生日（如闰二月初一生日）
   howMet: str(b.howMet),               // 相识故事
   notes: str(b.notes)
 }));
@@ -260,6 +261,8 @@ function memoriesRouter(collection) {
     await fsp.unlink(path.join(req.vault.mediaDir, mem.filename)).catch(() => {});
     await fsp.unlink(path.join(req.vault.thumbDir, mem.id + '.jpg')).catch(() => {});
     await resolve(req).remove(mem.id);
+    // 再保存一次让 .bak 前进到删除后的版本：被删照片的备注/标签/地点不应残留在回滚备份里
+    await resolve(req).store.save().catch(() => {});
     res.json({ ok: true });
   });
 

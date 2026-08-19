@@ -89,12 +89,12 @@ function renderChips() {
   const now = new Date();
   for (const md of (store.data.config.memorialDays || [])) {
     if (!md.date) continue;
-    const next = nextOccurrence(md.date, md.lunar, now);
+    const next = nextOccurrence(md.date, md.lunar, md.leap, now);
     if (!next) continue;
     const diff = daysUntil(next, now);
     const tail = diff >= 0 ? `还有 ${diff} 天` : `已过 ${-diff} 天`;
     box.append(el('div', { class: 'chip', text: '' },
-      md.name, ' · ', md.lunar ? '农历 ' : '', el('b', { text: tail })));
+      md.name, ' · ', md.lunar ? (md.leap ? '农历闰月 ' : '农历 ') : '', el('b', { text: tail })));
   }
 }
 
@@ -108,9 +108,10 @@ async function renderBanners() {
     const icons = { birthday: '🎂', period: '🌸', milestone: '🎉', memorial: '💘' };
     const cls = (it) => it.type === 'birthday' ? 'banner cake' : it.type === 'period' ? 'banner period' : 'banner';
     const rows = (r.items || [])
-      .filter((it) => it.inDays >= 0)
+      .filter((it) => it.inDays >= 0 || it.active)
       .map((it) => {
-        const when = it.inDays === 0 ? '就是今天！' : `还有 ${it.inDays} 天`;
+        // active：正在进行中的状态（如经期中），不显示倒计时
+        const when = it.active ? '' : (it.inDays === 0 ? '就是今天！' : `还有 ${it.inDays} 天`);
         return el('div', { class: cls(it), text: '' },
           icons[it.type] || '💘',
           el('span', null, it.title + (it.sub ? ` · ${it.sub}` : ''), el('b', { text: ' ' + when })));
@@ -130,7 +131,7 @@ function initLogin() {
       clearInterval(poll);
       poll = setInterval(async () => {
         try {
-          const status = await get('/api/auth/web-login/status?id=' + encodeURIComponent(login.id) + '&secret=' + encodeURIComponent(login.secret));
+          const status = await post('/api/auth/web-login/status', { id: login.id, secret: login.secret });
           if (status.status === 'expired') { clearInterval(poll); $('loginErr').hidden = false; return; }
           if (status.status !== 'claimed' || !status.ticket) return;
           clearInterval(poll);
@@ -266,7 +267,8 @@ function initGlobalSearch() {
 
   const MODULE_ROUTE = {
     memories: 'timeline', profile: 'profile', preferences: 'preferences',
-    people: 'people', events: 'events', wishes: 'wishes', gifts: 'wishes', config: 'timeline'
+    people: 'people', events: 'events', wishes: 'wishes', gifts: 'wishes',
+    albums: 'timeline', config: 'timeline'
   };
   const jump = (module, id) => {
     dropdown.hidden = true;
@@ -274,6 +276,12 @@ function initGlobalSearch() {
     if (module === 'memories') {
       location.hash = '#/timeline';
       setTimeout(() => window.dispatchEvent(new CustomEvent('vault:focus-media', { detail: id })), 80);
+    } else if (module === 'albums') {
+      if (location.hash.replace('#/', '').split('?')[0] === 'timeline') {
+        window.dispatchEvent(new CustomEvent('vault:focus-album', { detail: id }));
+      } else {
+        location.hash = '#/timeline?album=' + encodeURIComponent(id);
+      }
     } else if (route !== location.hash.replace('#/', '')) {
       location.hash = '#/' + route + (id ? '?focus=' + encodeURIComponent(id) : '');
     } else {
@@ -383,10 +391,20 @@ async function openSettings() {
       const lunarChk = el('input', { type: 'checkbox', id: 'lunar-' + i });
       lunarChk.checked = !!d.lunar;
       const lunarLabel = el('label', { class: 'lunar-chk', for: 'lunar-' + i }, lunarChk, el('span', { text: '农历' }));
+      const leapChk = el('input', { type: 'checkbox' });
+      leapChk.checked = d.leap === true;
+      leapChk.disabled = !lunarChk.checked;
+      const leapLabel = el('label', { class: 'lunar-chk' }, leapChk, el('span', { text: '闰月' }));
       name.addEventListener('change', () => { days[i].name = name.value; });
       date.addEventListener('change', () => { days[i].date = date.value; });
-      lunarChk.addEventListener('change', () => { days[i].lunar = lunarChk.checked; });
+      lunarChk.addEventListener('change', () => {
+        days[i].lunar = lunarChk.checked;
+        if (!lunarChk.checked) { leapChk.checked = false; days[i].leap = false; }
+        leapChk.disabled = !lunarChk.checked;
+      });
+      leapChk.addEventListener('change', () => { days[i].leap = leapChk.checked; });
       memorialRows.append(el('div', { class: 'memorial-edit-row' }, name, date, lunarLabel,
+        el('div', { class: 'lunar-chk-row' }, leapLabel),
         el('button', { class: 'cf-del', text: '✕', onclick: () => { days.splice(i, 1); renderRows(); } })));
     });
   };
