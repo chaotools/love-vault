@@ -125,6 +125,32 @@ test('去重：同内容重复记录被拒绝，不产生重复数据', async ()
     const dupPerson = await executeTool('addPerson', { name: '李阿姨' }, vault);
     assert.equal(dupPerson.ok, false);
     assert.equal(vault.people.list().length, 1);
+
+    // 大事记允许同名不同日期，但同一天、同标题、同类型是同一事实；
+    // 模型即使带着不同详情重试，也不能重复落库。
+    await executeTool('addEvent', { date: '2024-07-31', title: '拿到驾驶证', type: '里程碑', description: '第一次记录' }, vault);
+    const dupEvent = await executeTool('addEvent', { date: '2024-07-31T12:00:00+08:00', title: '拿到驾驶证', type: '里程碑', description: '模型重试时补充的详情' }, vault);
+    assert.equal(dupEvent.ok, false);
+    assert.equal(vault.events.list().length, 1);
+    const anotherDay = await executeTool('addEvent', { date: '2025-07-31', title: '拿到驾驶证', type: '里程碑' }, vault);
+    assert.equal(anotherDay.ok, true);
+    assert.equal(vault.events.list().length, 2);
+  } finally {
+    await fsp.rm(root, { recursive: true, force: true });
+  }
+});
+
+test('同一次 AI 请求重复调用同一大事记只写入一次', async () => {
+  const { root, vault } = await makeVault();
+  try {
+    const requestToolCalls = new Set();
+    const args = { date: '2024-07-31', title: '拿到驾驶证', type: '里程碑', description: '成功考取驾驶证' };
+    const first = await executeTool('addEvent', args, vault, { requestToolCalls });
+    const repeated = await executeTool('addEvent', { ...args, description: '' }, vault, { requestToolCalls });
+    assert.equal(first.ok, true);
+    assert.equal(repeated.ok, false);
+    assert.match(repeated.detail, /已存在/);
+    assert.equal(vault.events.list().length, 1);
   } finally {
     await fsp.rm(root, { recursive: true, force: true });
   }
@@ -245,6 +271,80 @@ test('chatCompletionWithTools：单轮工具调用过多时不执行写入', asy
     async () => ({ content: '', toolCalls: tooManyCalls, assistantMessage: { role: 'assistant', tool_calls: [] } })
   );
   assert.match(reply.content, /最多 8 项/);
+});
+
+test('chatCompletionWithTools：跨轮工具调用总数超过 8 时不执行超额写入', async () => {
+  let round = 0;
+  const executed = [];
+  const reply = await chatCompletionWithTools(
+    {}, [{ role: 'user', content: '记一下' }], TOOLS,
+    async (name) => { executed.push(name); return 'ok'; },
+    async () => {
+      round++;
+      const toolCalls = Array.from({ length: 5 }, (_, index) => ({ id: `${round}-${index}`, name: 'addWish', arguments: { title: `${round}-${index}` } }));
+      return { content: '', toolCalls, assistantMessage: { role: 'assistant', tool_calls: [] } };
+    }
+  );
+  assert.match(reply.content, /最多 8 项/);
+  assert.equal(executed.length, 5);
+});
+
+test('AI 空响应自动重试一次', async () => {
+  const originalFetch = global.fetch;
+  let calls = 0;
+  global.fetch = async () => ({
+    ok: true,
+    json: async () => {
+      calls++;
+      return calls === 1
+        ? { choices: [] }
+        : { choices: [{ message: { content: '重试成功' } }] };
+    }
+  });
+  try {
+    const reply = await ai.chatCompletion(
+      { baseUrl: 'https://ai.example', apiKey: 'test-key', model: 'test-model' },
+      [{ role: 'user', content: '你好' }]
+    );
+    assert.equal(reply, '重试成功');
+    assert.equal(calls, 2);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('AI 写入成功后确认回复为空时仍返回已保存结果', async () => {
+  const { root, vault } = await makeVault();
+  vault.config = { data: { ai: { provider: 'custom', baseUrl: 'https://ai.example', apiKey: 'test-key', model: 'test-model' } } };
+  const original = ai.chatCompletionWithTools;
+  const app = express();
+  const data = { config: vault.config.data, profile: {}, preferences: [], people: [], events: [], wishes: [], gifts: [], memories: [] };
+  app.use(express.json());
+  app.use((req, res, next) => { req.vault = vault; next(); });
+  app.use('/', askRouter(vault.config, () => data));
+  const server = await new Promise((resolve) => {
+    const value = app.listen(0, () => resolve(value));
+  });
+  try {
+    ai.chatCompletionWithTools = async (resolved, messages, tools, execute) => {
+      await execute('addEvent', { date: '2024-07-31', title: '拿到驾驶证', type: '里程碑' });
+      throw new Error('AI 返回内容为空');
+    };
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [{ role: 'user', content: '记下拿到驾驶证' }] })
+    });
+    const body = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(body));
+    assert.match(body.answer, /已成功记下 1 条记录/);
+    assert.equal(body.written.length, 1);
+    assert.equal(vault.events.list().length, 1);
+  } finally {
+    ai.chatCompletionWithTools = original;
+    await new Promise((resolve) => server.close(resolve));
+    await fsp.rm(root, { recursive: true, force: true });
+  }
 });
 
 test('测试连接路由使用当前配置存储', async () => {

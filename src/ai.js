@@ -41,36 +41,45 @@ async function chatCompletion(resolved, messages, { temperature = 0.7, timeoutMs
   try {
     const payload = { model: resolved.model, messages, temperature };
     if (tools && tools.length) { payload.tools = tools; payload.tool_choice = 'auto'; }
-    const resp = await fetch(resolved.baseUrl + '/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + resolved.apiKey },
-      body: JSON.stringify(payload),
-      signal: controller.signal
-    });
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) {
-      const err = new Error((data.error && data.error.message) || ('AI 接口返回 ' + resp.status));
+    // 个别兼容接口会偶发返回 HTTP 200 但没有 choices/message。此时安全地重试一次：
+    // 本函数只请求模型，不执行工具或写入数据，重试不会造成重复记录。
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const resp = await fetch(resolved.baseUrl + '/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + resolved.apiKey },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        const err = new Error((data.error && data.error.message) || ('AI 接口返回 ' + resp.status));
+        err.status = 502;
+        err.providerStatus = resp.status;
+        throw err;
+      }
+      const msg = data.choices && data.choices[0] && data.choices[0].message;
+      const content = msg && typeof msg.content === 'string' ? msg.content : '';
+      const toolCalls = msg && Array.isArray(msg.tool_calls) ? msg.tool_calls.map((tc) => {
+        let args = {};
+        try { args = JSON.parse(tc.function && tc.function.arguments || '{}'); } catch (e) { /* 解析失败按空对象 */ }
+        return { id: tc.id, name: tc.function && tc.function.name, arguments: args };
+      }) : [];
+      if (msg && (content || toolCalls.length)) {
+        if (tools && tools.length) {
+          return {
+            content,
+            toolCalls,
+            assistantMessage: { role: 'assistant', content: content || null, tool_calls: msg.tool_calls || [] }
+          };
+        }
+        return content;
+      }
+      if (attempt === 0) continue;
+      const err = new Error('AI 返回内容为空');
       err.status = 502;
-      err.providerStatus = resp.status;
+      err.responseSummary = { choices: Array.isArray(data.choices) ? data.choices.length : 0 };
       throw err;
     }
-    const msg = data.choices && data.choices[0] && data.choices[0].message;
-    if (!msg) { const err = new Error('AI 返回内容为空'); err.status = 502; throw err; }
-    const content = msg.content || '';
-    const toolCalls = (msg.tool_calls || []).map((tc) => {
-      let args = {};
-      try { args = JSON.parse(tc.function && tc.function.arguments || '{}'); } catch (e) { /* 解析失败按空对象 */ }
-      return { id: tc.id, name: tc.function && tc.function.name, arguments: args };
-    });
-    if (tools && tools.length) {
-      return {
-        content,
-        toolCalls,
-        assistantMessage: { role: 'assistant', content: content || null, tool_calls: msg.tool_calls || [] }
-      };
-    }
-    if (!content) { const err = new Error('AI 返回内容为空'); err.status = 502; throw err; }
-    return content;
   } catch (e) {
     if (e.name === 'AbortError') { const err = new Error('AI 请求超时'); err.status = 504; throw err; }
     throw e;
@@ -135,6 +144,7 @@ async function ask(resolved, userMessages, allData) {
 // chatFn 供测试注入假的底层调用；生产默认用真实 chatCompletion。
 async function chatCompletionWithTools(resolved, messages, tools, executeTool, chatFn = chatCompletion, plainChatFn = chatCompletion) {
   const history = [...messages];
+  let requestedToolCalls = 0;
   for (let round = 0; round < 4; round++) {
     let reply;
     try {
@@ -148,9 +158,10 @@ async function chatCompletionWithTools(resolved, messages, tools, executeTool, c
       throw e;
     }
     if (!reply.toolCalls || !reply.toolCalls.length) return reply;
-    if (reply.toolCalls.length > 8) {
+    if (requestedToolCalls + reply.toolCalls.length > 8) {
       return { content: '这次需要记录的内容较多，请分几次告诉我，每次最多 8 项。', toolCalls: [] };
     }
+    requestedToolCalls += reply.toolCalls.length;
     // 逐个处理工具调用：白名单内的执行，未知的标记失败回填（不让模型死循环）
     const validNames = new Set(tools.map((t) => t.function && t.function.name).filter(Boolean));
     history.push(reply.assistantMessage);
