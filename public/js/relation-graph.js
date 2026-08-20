@@ -1,5 +1,6 @@
 // 自研力导向有向关系图（零依赖）。
 // 边的语义是 source -> target；箭头指向 target，双向关系使用相反方向的弧线。
+import { radialRingRadii } from './relation-layout.mjs';
 
 const GROUP_COLORS = {
   家人: '#e8a06a',
@@ -42,6 +43,8 @@ export class RelationGraph {
     this.offsetY = 0;
     this.panning = false;
     this.panStart = null;
+    this.lastNodeClick = null;
+    this.doubleClickDelay = 350;
     this.width = 0;
     this.height = 0;
     this.destroyed = false;
@@ -63,9 +66,8 @@ export class RelationGraph {
       pointerdown: (e) => this._onPointerDown(e),
       pointermove: (e) => this._onPointerMove(e),
       pointerup: (e) => this._onPointerUp(e),
-      pointercancel: (e) => this._onPointerUp(e),
+      pointercancel: (e) => this._onPointerUp(e, true),
       wheel: (e) => this._onWheel(e),
-      dblclick: (e) => this._onDblClick(e),
       resize: () => {
         if (this.destroyed) return;
         this._resize();
@@ -78,7 +80,6 @@ export class RelationGraph {
     window.addEventListener('pointerup', this.handlers.pointerup);
     window.addEventListener('pointercancel', this.handlers.pointercancel);
     c.addEventListener('wheel', this.handlers.wheel, { passive: false });
-    c.addEventListener('dblclick', this.handlers.dblclick);
     window.addEventListener('resize', this.handlers.resize);
   }
 
@@ -88,21 +89,49 @@ export class RelationGraph {
     this.selectedNodeId = null;
     this.selectedEdgeId = null;
     this.hovered = null;
+    this.lastNodeClick = null;
     this._resize();
-    this._centerNodes();
+    this._layoutRadial();
+    this.start();
+  }
+
+  _layoutRadial() {
+    const center = this.nodes.find((node) => node.center) || null;
     const cx = this.width / 2;
     const cy = this.height / 2;
-    this.nodes.forEach((node, index) => {
-      if (node.x === undefined || node.y === undefined) {
-        const angle = (index / Math.max(1, this.nodes.length)) * Math.PI * 2;
-        const radius = 60 + (index % 5) * 30;
+    if (center) {
+      center.x = cx;
+      center.y = cy;
+      center.fixed = true;
+      center.vx = 0;
+      center.vy = 0;
+    }
+
+    const people = this.nodes.filter((node) => !node.center).slice();
+    const directIds = new Set((center ? this.edges : [])
+      .filter((edge) => edge.kind === 'ta' && edge.from === center.id)
+      .map((edge) => edge.to));
+    const direct = people.filter((node) => directIds.has(node.id));
+    const extended = people.filter((node) => !directIds.has(node.id));
+    const groupOrder = new Map([['家人', 0], ['朋友', 1], ['同事', 2], ['其他', 3]]);
+    const sortNodes = (list) => list.sort((a, b) =>
+      (groupOrder.get(a.group) ?? 9) - (groupOrder.get(b.group) ?? 9)
+      || String(a.label || '').localeCompare(String(b.label || ''))
+      || String(a.id).localeCompare(String(b.id)));
+    const radii = radialRingRadii(this.width, this.height, direct.length, extended.length);
+    const placeRing = (list, radius, offset) => {
+      sortNodes(list).forEach((node, index) => {
+        const angle = offset + (index / Math.max(1, list.length)) * Math.PI * 2;
         node.x = cx + Math.cos(angle) * radius;
         node.y = cy + Math.sin(angle) * radius;
-      }
-      node.vx = node.vx || 0;
-      node.vy = node.vy || 0;
-    });
-    this.start();
+        node.fixed = false;
+        node.vx = 0;
+        node.vy = 0;
+      });
+    };
+
+    if (direct.length) placeRing(direct, radii.directRadius, -Math.PI / 2);
+    if (extended.length) placeRing(extended, radii.extendedRadius, direct.length ? 0 : -Math.PI / 2);
   }
 
   _resize() {
@@ -269,6 +298,17 @@ export class RelationGraph {
     this.rafId = requestAnimationFrame(() => this._step());
   }
 
+  resetLayout() {
+    this.stop();
+    this.scale = 1;
+    this.offsetX = 0;
+    this.offsetY = 0;
+    this._resize();
+    this._layoutRadial();
+    this._draw();
+    this.start();
+  }
+
   stop() {
     this.running = false;
     if (this.rafId) cancelAnimationFrame(this.rafId);
@@ -340,7 +380,7 @@ export class RelationGraph {
       if (geometry.control) ctx.quadraticCurveTo(geometry.control.x, geometry.control.y, geometry.target.x, geometry.target.y);
       else ctx.lineTo(geometry.target.x, geometry.target.y);
       ctx.stroke();
-      this._drawArrow(geometry, style);
+      if (edge.directed !== false) this._drawArrow(geometry, style);
       this._drawEdgeLabel(edge, geometry, style);
     }
     ctx.globalAlpha = 1;
@@ -372,12 +412,20 @@ export class RelationGraph {
     const point = this._toCanvasPos(e);
     const node = this._hitNode(point);
     if (node) {
+      if (node.center) {
+        this.lastNodeClick = null;
+        this.selectNode(node.id);
+        this.canvas.style.cursor = 'default';
+        e.preventDefault();
+        return;
+      }
       this.dragged = node;
       this.dragStart = point;
       this.dragMoved = false;
       node.fixed = true;
       this.canvas.style.cursor = 'grabbing';
     } else {
+      this.lastNodeClick = null;
       const edge = this._hitEdge(point);
       if (edge) {
         this.selectEdge(edge.id);
@@ -421,10 +469,24 @@ export class RelationGraph {
     }
   }
 
-  _onPointerUp() {
+  _onPointerUp(_event, canceled = false) {
     if (this.dragged) {
       const node = this.dragged;
-      if (!this.dragMoved) this.selectNode(node.id);
+      if (!this.dragMoved && !canceled) {
+        this.selectNode(node.id);
+        const now = Date.now();
+        const isDoubleClick = this.lastNodeClick
+          && this.lastNodeClick.id === node.id
+          && now - this.lastNodeClick.time <= this.doubleClickDelay;
+        if (isDoubleClick) {
+          this.lastNodeClick = null;
+          this.onNodeClick(node.id);
+        } else {
+          this.lastNodeClick = { id: node.id, time: now };
+        }
+      } else if (this.dragMoved || canceled) {
+        this.lastNodeClick = null;
+      }
       this.dragged = null;
       this.dragStart = null;
       this.canvas.style.cursor = 'default';
@@ -444,11 +506,6 @@ export class RelationGraph {
     this.offsetY = point.y / newScale - worldY;
     this.scale = newScale;
     this._draw();
-  }
-
-  _onDblClick(e) {
-    const node = this._hitNode(this._toCanvasPos(e));
-    if (node) this.onNodeClick(node.id);
   }
 
   selectNode(id, notify = true) {
@@ -481,7 +538,6 @@ export class RelationGraph {
     window.removeEventListener('pointerup', this.handlers.pointerup);
     window.removeEventListener('pointercancel', this.handlers.pointercancel);
     c.removeEventListener('wheel', this.handlers.wheel);
-    c.removeEventListener('dblclick', this.handlers.dblclick);
     window.removeEventListener('resize', this.handlers.resize);
   }
 }

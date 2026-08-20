@@ -90,11 +90,12 @@ function build() {
   const grid = el('div', { class: 'people-grid', id: 'peopleGrid' });
   const graphBox = el('div', { class: 'people-graph', id: 'peopleGraph', hidden: true },
     el('canvas', { id: 'relationCanvas' }),
-    el('div', { class: 'graph-hint', text: '拖拽节点 · 滚轮缩放 · 单击选择 · 双击编辑 · 箭头指向关系目标' }));
+    el('button', { class: 'small-btn graph-reset', type: 'button', text: '重置布局', onclick: () => { if (graph) graph.resetLayout(); } }),
+    el('div', { class: 'graph-hint', text: '拖拽人物 · 滚轮缩放 · 单击选择 · 双击或详情按钮编辑 · TA 固定在中心' }));
   const graphLegend = el('div', { class: 'graph-legend', id: 'graphLegend', hidden: true },
     el('span', { class: 'legend-outgoing', text: '● 发出的关系' }),
     el('span', { class: 'legend-incoming', text: '● 指向我的关系' }),
-    el('span', { text: 'TA 关系：人物 → TA' }));
+    el('span', { text: 'TA 关系：TA → 人物' }));
   const relationDetails = el('div', { class: 'relation-details', id: 'relationDetails', hidden: true });
   const relationList = el('div', { class: 'relation-list', id: 'relationList', hidden: true });
   page.append(grid, graphBox, graphLegend, relationDetails, relationList);
@@ -183,21 +184,34 @@ function showEdgeDetails(edge, transient = false) {
   }
   details.hidden = false;
   details.innerHTML = '';
+  const editId = edge.kind === 'ta' ? edge.to : edge.from;
+  const editPersonButton = editId && editId !== 'TA'
+    ? el('button', { class: 'small-btn', text: '编辑人物', onclick: () => {
+      const person = people.find((item) => item.id === editId);
+      if (person) editPerson(person);
+    } })
+    : null;
   details.append(
-    el('div', { class: 'relation-details-title', text: '关系详情' }),
+    el('div', { class: 'relation-details-head' },
+      el('div', { class: 'relation-details-title', text: '关系详情' }),
+      editPersonButton),
     el('div', { class: 'relation-details-main', text: relationDetail(edge) }),
-    edge.note ? el('div', { class: 'relation-details-note', text: '备注：' + edge.note }) : null
+    edge.note && edge.note !== 'null' ? el('div', { class: 'relation-details-note', text: '备注：' + edge.note }) : null
   );
 }
 
 function relationRow(edge, onSelect) {
   const row = el('button', { type: 'button', class: 'relation-row' });
+  const direction = edge.directed === false ? '↔' : '→';
+  const source = edge.sourceLabel || '未命名';
+  const target = edge.targetLabel || '未命名';
+  const type = edge.label || '未填写关系';
+  row.setAttribute('aria-label', `${source} ${direction} ${target}，关系：${type}`);
   row.append(
-    el('span', { class: 'relation-row-source', text: edge.sourceLabel }),
-    el('span', { class: 'relation-row-arrow', text: '→' }),
-    el('span', { class: 'relation-row-type', text: edge.label || '未填写关系' }),
-    el('span', { class: 'relation-row-arrow', text: '→' }),
-    el('span', { class: 'relation-row-target', text: edge.targetLabel })
+    el('span', { class: 'relation-row-source', text: source }),
+    el('span', { class: 'relation-row-arrow', text: direction }),
+    el('span', { class: 'relation-row-target', text: target }),
+    el('span', { class: 'relation-row-type', text: '关系：' + type })
   );
   row.addEventListener('click', onSelect);
   return row;
@@ -227,8 +241,14 @@ function showNodeDetails(id) {
   };
   details.hidden = false;
   details.innerHTML = '';
+  const person = id === 'TA' ? null : people.find((item) => item.id === id);
+  const editButton = person
+    ? el('button', { class: 'small-btn', text: '编辑人物', onclick: () => editPerson(person) })
+    : null;
   details.append(
-    el('div', { class: 'relation-details-title', text: `“${node.label}”的关系` }),
+    el('div', { class: 'relation-details-head' },
+      el('div', { class: 'relation-details-title', text: `“${node.label}”的关系` }),
+      editButton),
     section('我指向的人', outgoing),
     section('指向我的人', incoming)
   );
@@ -334,7 +354,7 @@ function buildGrid() {
 
 function editPerson(p) {
   const name = input({ type: 'text', value: p ? p.name : '', placeholder: '怎么称呼' });
-  const relation = input({ type: 'text', value: p ? p.relation : '', placeholder: '当前人物对 TA 的关系，如：妈妈 / 大学室友' });
+  const relation = input({ type: 'text', value: p ? p.relation : '', maxLength: '50', placeholder: 'TA 对当前人物的关系，如：爸爸 / 大学室友' });
   const group = select(GROUPS.map((g) => [g, g]), p ? p.group : (filterGroup !== 'all' ? filterGroup : '朋友'));
   const birthday = input({ type: 'text', value: p ? p.birthday : '', placeholder: '03-14 或 1998-03-14' });
   const lunarChk = el('input', { type: 'checkbox', id: 'pLunar' });
@@ -401,7 +421,7 @@ function editPerson(p) {
   const md = openModal({
     title: p ? '编辑 ' + p.name : '加一个人',
     content: el('div', null,
-      field('称呼', name), field('关系', relation), field('分组', group),
+      field('TA 对当前人物的关系', relation), field('分组', group),
       field('生日', birthday), lunarRow, field('相识', howMet), field('备注', notes),
       el('div', { class: 'field' }, el('label', { text: '当前人物 → 目标人物（区分同名）' }), relationBox, relAddRow)),
     buttons: [
