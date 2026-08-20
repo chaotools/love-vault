@@ -44,3 +44,21 @@ test('同名人物按 ID 生成稳定标签，分组筛选不保留隐藏端点'
   assert.deepEqual(duplicateLabels, ['王叔叔①', '王叔叔②']);
   });
 });
+
+test('双向关系使用 ↔、不绘制箭头，并清理空备注文本', () => {
+  return modelPromise.then(({ buildRelationModel, personRelationEdges, relationDetail }) => {
+    const model = buildRelationModel([
+      { id: 'aaa11111-1111-4111-8111-111111111111', name: '哥哥', relation: '哥哥', group: '家人', relations: [
+        { toId: 'bbb22222-2222-4222-8222-222222222222', type: '夫妻', bidirectional: true, note: ' null ' }
+      ] },
+      { id: 'bbb22222-2222-4222-8222-222222222222', name: '嫂子', relation: '嫂子', group: '家人', relations: [] }
+    ]);
+    const edge = model.edges.find((item) => item.kind === 'person');
+    assert.equal(edge.bidirectional, true);
+    assert.equal(edge.directed, false);
+    assert.equal(edge.note, '');
+    assert.equal(relationDetail(edge), '哥哥 ↔ 嫂子：夫妻');
+    assert.deepEqual(personRelationEdges(model, edge.from), [edge]);
+    assert.deepEqual(personRelationEdges(model, edge.to), [edge]);
+  });
+});

@@ -94,20 +94,20 @@ test('AI 上下文默认剔除健康/生理期，显式开启后才发送', () =
   assert.ok(on.includes('"period"'));
 });
 
-test('AI 上下文明确区分 TA 对人物的关系与人物间有向关系', () => {
+test('AI 上下文明确区分 TA 对人物关系与人物间单向/双向关系', () => {
   const context = buildDataContext({
     config: { title: 't', ai: {} },
     profile: {},
     preferences: [],
     people: [
-      { id: 'a', name: '小王', relation: '朋友', relations: [{ toId: 'b', type: '同事' }] },
+      { id: 'a', name: '小王', relation: '朋友', relations: [{ toId: 'b', type: '同事', bidirectional: true }] },
       { id: 'b', name: '小李', relation: '同学', relations: [] }
     ],
     events: [], wishes: [], gifts: [], memories: []
   });
   assert.ok(context.includes('TA对该人物的关系'));
-  assert.ok(context.includes('人物间有向关联'));
-  assert.ok(context.includes('小李：同事'));
+  assert.ok(context.includes('人物间关联'));
+  assert.ok(context.includes('小李：同事（双向）'));
   assert.ok(!context.includes('"关系":"朋友"'));
 });
 

@@ -97,6 +97,25 @@ test('addWish / addPerson / addGift 默认值正确', async () => {
   }
 });
 
+test('AI addPerson 可明确写入双向人物关系', async () => {
+  const { root, vault } = await makeVault();
+  try {
+    const target = await executeTool('addPerson', { name: '嫂子' }, vault);
+    const targetId = vault.people.list().find((p) => p.name === '嫂子').id;
+    assert.equal(target.ok, true);
+    const result = await executeTool('addPerson', {
+      name: '哥哥',
+      relations: [{ toId: targetId, type: '夫妻', bidirectional: true }]
+    }, vault);
+    assert.equal(result.ok, true);
+    assert.deepEqual(vault.people.list().find((p) => p.name === '哥哥').relations, [
+      { toId: targetId, type: '夫妻', bidirectional: true }
+    ]);
+  } finally {
+    await fsp.rm(root, { recursive: true, force: true });
+  }
+});
+
 test('去重：同内容重复记录被拒绝，不产生重复数据', async () => {
   const { root, vault } = await makeVault();
   try {
