@@ -1,5 +1,5 @@
 // 自研力导向有向关系图（零依赖）。
-// 边的语义是 source -> target；箭头指向 target，双向关系使用相反方向的弧线。
+// 边的语义是 source -> target；箭头指向 target，双向关系不绘制箭头。
 import { radialRingRadii } from './relation-layout.mjs';
 
 const GROUP_COLORS = {
@@ -320,6 +320,9 @@ export class RelationGraph {
     if (this.selectedEdgeId === edge.id) return { color: '#b83d64', alpha: 1, width: 2.8 };
     if (this.hovered && this.hovered.type === 'edge' && this.hovered.value.id === edge.id) return { color: '#c85b7b', alpha: 1, width: 2.4 };
     if (this.selectedNodeId) {
+      if (edge.bidirectional && (edge.from === this.selectedNodeId || edge.to === this.selectedNodeId)) {
+        return { color: '#9c6b9c', alpha: 1, width: 2.2 };
+      }
       if (edge.from === this.selectedNodeId) return { color: '#e87b8e', alpha: 1, width: 2.2 };
       if (edge.to === this.selectedNodeId) return { color: '#5c8fc7', alpha: 1, width: 2.2 };
       return { color: '#a9959d', alpha: 0.16, width: 1 };

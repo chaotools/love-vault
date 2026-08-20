@@ -23,9 +23,10 @@ const preferencesRouter = (c) => collectionRouter(c, (b) => ({
 const PEOPLE_GROUP = ['家人', '朋友', '同事', '其他'];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-// 人物间连接 sanitize：relations: [{ toId, type, note }]
+// 人物间连接 sanitize：relations: [{ toId, type, note, bidirectional? }]
 // 方向语义：当前人物 -> toId，type 是当前人物对目标人物的关系；
 // people.relation 另表示 TA -> 当前人物的关系。
+// bidirectional=true 表示关系本身是双方关系（如夫妻/朋友），只保存一条记录并展示 ↔。
 // 校验：toId 是合法 uuid、type 非空、toId 不能是自己、同对不重复
 function relationsSanitize(raw, selfId) {
   if (raw === undefined) return undefined;
@@ -36,14 +37,16 @@ function relationsSanitize(raw, selfId) {
     if (!r || typeof r !== 'object') continue;
     const toId = typeof r.toId === 'string' ? r.toId.trim() : '';
     const type = typeof r.type === 'string' ? r.type.trim().slice(0, 50) : '';
-    const note = typeof r.note === 'string' ? r.note.trim().slice(0, 200) : '';
+    const rawNote = typeof r.note === 'string' ? r.note.trim().slice(0, 200) : '';
+    const note = /^(null|undefined)$/i.test(rawNote) ? '' : rawNote;
+    const bidirectional = r.bidirectional === true;
     if (!UUID_RE.test(toId)) continue;                    // 非法 toId 丢弃
     if (selfId && toId === selfId) continue;              // 不能连自己
     if (!type) continue;                                  // type 必填
     const key = toId + '\u0000' + type;
     if (seen.has(key)) continue;                          // 同对同类型去重
     seen.add(key);
-    out.push({ toId, type, note });
+    out.push({ toId, type, note, ...(bidirectional ? { bidirectional: true } : {}) });
   }
   return out;
 }

@@ -1,4 +1,4 @@
-// 人物关系的展示投影：图和清单共用，确保来源、目标、筛选规则始终一致。
+// 人物关系的展示投影：图和清单共用，确保来源、目标、方向规则始终一致。
 
 const GROUPS = ['家人', '朋友', '同事', '其他'];
 
@@ -22,6 +22,11 @@ function disambiguatedLabels(people) {
 
 function pairKey(a, b) {
   return [String(a), String(b)].sort().join('\u0000');
+}
+
+function normalizeRelationNote(value) {
+  const note = typeof value === 'string' ? value.trim() : '';
+  return /^(null|undefined)$/i.test(note) ? '' : note;
 }
 
 function assignCurves(edges) {
@@ -51,7 +56,8 @@ function assignCurves(edges) {
 
 /**
  * Build the single source of truth used by the relation graph and relation list.
- * relations[{toId,type}] means source person -> target person.
+ * relations[{toId,type,bidirectional?}] means source person -> target person;
+ * bidirectional=true means the relation is mutual and is rendered as source ↔ target.
  * person.relation means TA -> person: the relationship of TA to that person.
  */
 export function buildRelationModel(people = [], filterGroup = 'all') {
@@ -89,14 +95,16 @@ export function buildRelationModel(people = [], filterGroup = 'all') {
       const target = byId.get(relation && relation.toId);
       // 分组筛选时只展示两个端点都在当前分组内的关系。
       if (!target || !visibleIds.has(target.id)) return;
+      const bidirectional = relation && relation.bidirectional === true;
       edges.push({
         id: `relation:${person.id}:${index}:${target.id}`,
         from: person.id,
         to: target.id,
         label: typeof relation.type === 'string' ? relation.type : '',
-        note: typeof relation.note === 'string' && relation.note !== 'null' ? relation.note : '',
+        note: normalizeRelationNote(relation && relation.note),
         kind: 'person',
-        directed: true,
+        directed: !bidirectional,
+        bidirectional,
         sourceLabel: labels.get(person.id),
         targetLabel: labels.get(target.id)
       });
@@ -114,7 +122,7 @@ export function buildRelationModel(people = [], filterGroup = 'all') {
 export function relationDetail(edge) {
   if (!edge) return '';
   const type = edge.label || '未填写关系';
-  const symbol = edge.directed === false ? '↔' : '→';
+  const symbol = edge.bidirectional || edge.directed === false ? '↔' : '→';
   return `${edge.sourceLabel} ${symbol} ${edge.targetLabel}：${type}`;
 }
 

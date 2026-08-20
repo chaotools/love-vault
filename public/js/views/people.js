@@ -95,6 +95,7 @@ function build() {
   const graphLegend = el('div', { class: 'graph-legend', id: 'graphLegend', hidden: true },
     el('span', { class: 'legend-outgoing', text: '● 发出的关系' }),
     el('span', { class: 'legend-incoming', text: '● 指向我的关系' }),
+    el('span', { text: '↔ 双向关系（如夫妻/朋友）' }),
     el('span', { text: 'TA 关系：TA → 人物' }));
   const relationDetails = el('div', { class: 'relation-details', id: 'relationDetails', hidden: true });
   const relationList = el('div', { class: 'relation-list', id: 'relationList', hidden: true });
@@ -191,18 +192,22 @@ function showEdgeDetails(edge, transient = false) {
       if (person) editPerson(person);
     } })
     : null;
+  const note = typeof edge.note === 'string' ? edge.note.trim() : '';
+  const noteNode = note && !/^(null|undefined)$/i.test(note)
+    ? el('div', { class: 'relation-details-note', text: '备注：' + note })
+    : null;
   details.append(
     el('div', { class: 'relation-details-head' },
       el('div', { class: 'relation-details-title', text: '关系详情' }),
       editPersonButton),
-    el('div', { class: 'relation-details-main', text: relationDetail(edge) }),
-    edge.note && edge.note !== 'null' ? el('div', { class: 'relation-details-note', text: '备注：' + edge.note }) : null
+    el('div', { class: 'relation-details-main', text: relationDetail(edge) })
   );
+  if (noteNode) details.append(noteNode);
 }
 
 function relationRow(edge, onSelect) {
   const row = el('button', { type: 'button', class: 'relation-row' });
-  const direction = edge.directed === false ? '↔' : '→';
+  const direction = edge.bidirectional || edge.directed === false ? '↔' : '→';
   const source = edge.sourceLabel || '未命名';
   const target = edge.targetLabel || '未命名';
   const type = edge.label || '未填写关系';
@@ -228,8 +233,9 @@ function showNodeDetails(id) {
   if (!details || !relationModel || !id) return;
   const node = relationModel.nodes.find((item) => item.id === id);
   if (!node) return;
-  const outgoing = relationModel.edges.filter((edge) => edge.from === id);
-  const incoming = relationModel.edges.filter((edge) => edge.to === id);
+  const mutual = relationModel.edges.filter((edge) => edge.bidirectional && (edge.from === id || edge.to === id));
+  const outgoing = relationModel.edges.filter((edge) => !edge.bidirectional && edge.from === id);
+  const incoming = relationModel.edges.filter((edge) => !edge.bidirectional && edge.to === id);
   const section = (title, edges) => {
     const box = el('div', { class: 'relation-detail-group' }, el('div', { class: 'relation-detail-group-title', text: title }));
     if (!edges.length) box.append(el('div', { class: 'relation-detail-empty', text: '暂无' }));
@@ -245,12 +251,14 @@ function showNodeDetails(id) {
   const editButton = person
     ? el('button', { class: 'small-btn', text: '编辑人物', onclick: () => editPerson(person) })
     : null;
+  const sections = [];
+  if (mutual.length) sections.push(section('双向关系', mutual));
+  sections.push(section('我指向的人', outgoing), section('指向我的人', incoming));
   details.append(
     el('div', { class: 'relation-details-head' },
       el('div', { class: 'relation-details-title', text: `“${node.label}”的关系` }),
       editButton),
-    section('我指向的人', outgoing),
-    section('指向我的人', incoming)
+    ...sections
   );
 }
 
@@ -347,7 +355,8 @@ function buildGrid() {
       (p.relations || []).length ? el('div', { class: 'person-rels' },
         ...p.relations.map((r) => {
           const t = people.find((x) => x.id === r.toId);
-          return el('span', { class: 'rel-chip', text: '→ ' + (t ? disambiguatedLabel(t, 0) : '?') + '·' + r.type });
+          const direction = r.bidirectional === true ? '↔ ' : '→ ';
+          return el('span', { class: 'rel-chip', text: direction + (t ? disambiguatedLabel(t, 0) : '?') + '·' + r.type });
         })) : null));
   }
 }
@@ -375,25 +384,33 @@ function editPerson(p) {
   const notes = textarea({ placeholder: 'TA提过的八卦、喜好、要注意的点…（可空）' }, p ? p.notes : '');
 
   // —— 关联其他人（人物间连接） ——
-  // relations: [{ toId, type, note }]，用 id 引用解决同名歧义
+  // relations: [{ toId, type, note, bidirectional? }]，用 id 引用解决同名歧义
   const relations = (p ? (p.relations || []) : []).map((r) => ({ ...r }));
-  const RELATION_SUGGESTIONS = ['爸爸', '妈妈', '哥哥', '姐姐', '弟弟', '妹妹', '老公', '老婆', '同事', '同学', '朋友', '表弟', '表姐', '其他'];
+  const RELATION_SUGGESTIONS = ['爸爸', '妈妈', '哥哥', '姐姐', '弟弟', '妹妹', '老公', '老婆', '夫妻', '情侣', '同事', '同学', '朋友', '表弟', '表姐', '其他'];
   const relationBox = el('div', { class: 'rel-edit-box' });
   const renderRelations = () => {
     relationBox.innerHTML = '';
     if (!relations.length) {
-      relationBox.append(el('p', { style: 'font-size:13px;color:var(--muted)', text: '还没有关系。添加后会记录为“当前人物 → 目标人物”，同名人物按编号区分' }));
+      relationBox.append(el('p', { style: 'font-size:13px;color:var(--muted)', text: '还没有关系。默认记录为“当前人物 → 目标人物”；夫妻、朋友等可勾选“双向”，同名人物按编号区分' }));
     }
     relations.forEach((r, i) => {
       const target = people.find((x) => x.id === r.toId);
+      const typeInput = input({
+        type: 'text', value: r.type, placeholder: '关系，如：妈妈',
+        oninput: (e) => { relations[i].type = e.target.value.trim(); }
+      });
+      const bidirectionalChk = el('input', { type: 'checkbox' });
+      bidirectionalChk.checked = r.bidirectional === true;
+      bidirectionalChk.addEventListener('change', () => {
+        if (bidirectionalChk.checked) relations[i].bidirectional = true;
+        else delete relations[i].bidirectional;
+      });
+      const bidirectionalLabel = el('label', { class: 'rel-bidirectional' }, bidirectionalChk, el('span', { text: '双向' }));
       const row = el('div', { class: 'rel-edit-row' },
         el('span', { class: 'rel-target', text: target ? disambiguatedLabel(target, 0) : '（已删除的人）' }),
-        el('input', {
-          type: 'text', value: r.type, placeholder: '关系，如：妈妈',
-          oninput: (e) => { relations[i].type = e.target.value.trim(); }
-        }),
+        typeInput,
+        bidirectionalLabel,
         el('button', { class: 'cf-del', text: '✕', onclick: () => { relations.splice(i, 1); renderRelations(); } }));
-      row.querySelectorAll('input')[0].addEventListener('input', (e) => { relations[i].type = e.target.value.trim(); });
       relationBox.append(row);
     });
   };
@@ -403,6 +420,8 @@ function editPerson(p) {
   const otherPeople = people.filter((x) => !p || x.id !== p.id);
   const relTarget = select([['', '选择要关联的人…'], ...otherPeople.map((x) => [x.id, disambiguatedLabel(x, 0)])], '', {});
   const relType = input({ type: 'text', placeholder: '关系，如：同事 / 表姐', list: 'relSuggest' });
+  const relBidirectionalChk = el('input', { type: 'checkbox' });
+  const relBidirectionalLabel = el('label', { class: 'rel-bidirectional' }, relBidirectionalChk, el('span', { text: '双向' }));
   const relSuggest = el('datalist', { id: 'relSuggest' }, ...RELATION_SUGGESTIONS.map((s) => el('option', { value: s })));
   const addRelBtn = el('button', {
     class: 'small-btn', text: '＋ 关联', onclick: () => {
@@ -411,19 +430,19 @@ function editPerson(p) {
       if (!toId) { toast('先选要关联的人', 'err'); return; }
       if (!type) { toast('填一下关系，如：同事', 'err'); return; }
       if (relations.some((r) => r.toId === toId && r.type === type)) { toast('这个关系已经加过了', 'err'); return; }
-      relations.push({ toId, type });
-      relTarget.value = ''; relType.value = '';
+      relations.push({ toId, type, ...(relBidirectionalChk.checked ? { bidirectional: true } : {}) });
+      relTarget.value = ''; relType.value = ''; relBidirectionalChk.checked = false;
       renderRelations();
     }
   });
-  const relAddRow = el('div', { class: 'rel-add-row' }, relTarget, relType, relSuggest, addRelBtn);
+  const relAddRow = el('div', { class: 'rel-add-row' }, relTarget, relType, relBidirectionalLabel, relSuggest, addRelBtn);
 
   const md = openModal({
     title: p ? '编辑 ' + p.name : '加一个人',
     content: el('div', null,
       field('TA 对当前人物的关系', relation), field('分组', group),
       field('生日', birthday), lunarRow, field('相识', howMet), field('备注', notes),
-      el('div', { class: 'field' }, el('label', { text: '当前人物 → 目标人物（区分同名）' }), relationBox, relAddRow)),
+      el('div', { class: 'field' }, el('label', { text: '当前人物与目标人物的关系（默认单向，可选双向）' }), relationBox, relAddRow)),
     buttons: [
       p ? { el: el('button', { class: 'ghost-btn danger', text: '删除', onclick: async () => {
         if (!confirm(`删除「${p.name}」？`)) return;

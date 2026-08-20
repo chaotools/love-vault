@@ -69,7 +69,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'addPerson',
-      description: '记录TA身边的一个新人物（家人/朋友/同事）；同名已存在时会被拒绝重复写入。relation 表示 TA 指向当前人物的关系，relations 表示当前人物指向其他人物的关系',
+      description: '记录TA身边的一个新人物（家人/朋友/同事）；同名已存在时会被拒绝重复写入。relation 表示 TA 指向当前人物的关系，relations 表示当前人物与其他人物的关系；bidirectional=true 表示双方关系（如夫妻/朋友）',
       parameters: {
         type: 'object',
         properties: {
@@ -80,12 +80,13 @@ const TOOLS = [
           notes: { type: 'string', description: '备注' },
           relations: {
             type: 'array',
-            description: '建立当前人物指向已有人物的关系（可选）：每个元素 { toId: 已存在人物的 id, type: 当前人物对目标人物的关系如"同事" }',
+            description: '建立当前人物与已有人物的关系（可选）：每个元素 { toId, type, bidirectional? }。默认是当前人物 → 目标人物；bidirectional=true 时表示双方关系（如夫妻/朋友）',
             items: {
               type: 'object',
               properties: {
                 toId: { type: 'string', description: '已有的人物 id' },
-                type: { type: 'string', description: '关系类型，如：同事 / 表姐' }
+                type: { type: 'string', description: '关系类型，如：同事 / 表姐' },
+                bidirectional: { type: 'boolean', description: '是否为双方关系；夫妻、朋友等关系可设为 true' }
               },
               required: ['toId', 'type']
             }
@@ -227,7 +228,7 @@ async function executeTool(name, args, vault, { requestToolCalls, userDateText, 
           const key = toId + '\u0000' + type;
           if (seen.has(key)) continue;
           seen.add(key);
-          relations.push({ toId, type });
+          relations.push({ toId, type, ...(r.bidirectional === true ? { bidirectional: true } : {}) });
         }
       }
       const item = await vault.people.add({
