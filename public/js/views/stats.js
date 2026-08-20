@@ -1,5 +1,5 @@
 // 统计视图：在一起天数、各类计数、月度分布柱状图、标签云、记录活跃、TA 画像
-import { el, get, emptyState } from '../core.js';
+import { el, get, emptyState, subjectLabel } from '../core.js';
 
 let stats = null;
 let viewEl = null;
@@ -33,7 +33,7 @@ function build() {
     statCard('📖', c.events, '大事记'),
     statCard('💝', c.wishes + (c.wishes ? ` · ${doneRate}已实现` : ''), '愿望'),
     statCard('🎁', c.gifts, '礼物'),
-    statCard('👥', c.people, 'TA身边的人'),
+    statCard('👥', c.people, `${subjectLabel()}身边的人`),
     statCard('📁', c.albums, '相册'));
   page.append(cards);
 
@@ -86,9 +86,9 @@ function build() {
   // 偏好分类 + 人名分布 + TA 画像
   const extraGrid = el('div', { class: 'stats-grid' });
   if (stats.prefByCategory && Object.keys(stats.prefByCategory).length) extraGrid.append(distCard('💗 偏好分类', stats.prefByCategory));
-  if (stats.peopleByGroup && Object.keys(stats.peopleByGroup).length) extraGrid.append(distCard('👥 TA身边的人', stats.peopleByGroup));
+  if (stats.peopleByGroup && Object.keys(stats.peopleByGroup).length) extraGrid.append(distCard(`👥 ${subjectLabel()}身边的人`, stats.peopleByGroup));
   if (stats.portraitCard && Object.keys(stats.portraitCard).length) extraGrid.append(portraitCard(stats.portraitCard));
-  if (extraGrid.children.length) page.append(section('关于 TA'), extraGrid);
+  if (extraGrid.children.length) page.append(section(`关于 ${subjectLabel()}`), extraGrid);
 
   viewEl.append(page);
 }
@@ -105,7 +105,7 @@ function rateCard(icon, done, total, rate) {
 // TA 画像卡
 function portraitCard(portrait) {
   return el('div', { class: 'section-card' },
-    el('h3', { text: '🧸 TA 画像' }),
+    el('h3', { text: `🧸 ${subjectLabel()} 画像` }),
     el('div', { class: 'kv-list' },
       ...Object.entries(portrait).map(([k, v]) => {
         const label = { nickname: '昵称', birthday: '生日', zodiac: '星座', bloodType: '血型', height: '身高', weight: '体重', shoeSize: '鞋码' }[k] || k;

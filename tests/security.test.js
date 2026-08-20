@@ -111,6 +111,19 @@ test('AI 上下文明确区分 TA 对人物关系与人物间单向/双向关系
   assert.ok(!context.includes('"关系":"朋友"'));
 });
 
+test('AI 上下文包含自定义主角称呼，同时保留 TA 关系字段兼容语义', () => {
+  const context = buildDataContext({
+    config: { title: 't', subjectName: '小鹿', ai: {} },
+    profile: {}, preferences: [], people: [{ id: 'a', name: '小王', relation: '朋友' }],
+    events: [], wishes: [], gifts: [], memories: []
+  });
+  assert.ok(context.includes('记忆主角称呼'));
+  assert.ok(context.includes('小鹿的档案'));
+  assert.ok(context.includes('小鹿身边的人'));
+  assert.ok(context.includes('TA对该人物的关系'));
+  assert.ok(!context.includes('subjectName'));
+});
+
 test('启动迁移会加密主库、用户库及 .bak 中的明文 API Key', async () => {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'love-vault-key-migration-'));
   const previous = process.env.VAULT_ENC_KEY;

@@ -6,6 +6,7 @@ const { validateUserAiSettings } = require('../ai');
 const DEFAULT_CONFIG = {
   title: '爱人记忆库',
   names: '',
+  subjectName: '',
   anniversary: '',
   music: '',
   memorialDays: [],          // [{name, date}]
@@ -13,6 +14,8 @@ const DEFAULT_CONFIG = {
   ai: { provider: 'zhipu', baseUrl: '', apiKey: '', model: '', privacy: { health: false, period: false } },
   auth: undefined            // 历史遗留字段，已无密码功能
 };
+
+const normalizeSubjectName = (value) => typeof value === 'string' ? value.trim().slice(0, 30) : '';
 
 function configRouter(store, save) {
   const r = express.Router();
@@ -24,6 +27,7 @@ function configRouter(store, save) {
     return {
       ...DEFAULT_CONFIG,
       ...safe,
+      subjectName: normalizeSubjectName(config.subjectName),
       ai: { ...DEFAULT_CONFIG.ai, ...ai, apiKey: '', hasApiKey: Boolean(ai.apiKey) },
       hasPassword: Boolean(auth)
     };
@@ -40,6 +44,7 @@ function configRouter(store, save) {
     for (const k of ['title', 'names', 'anniversary', 'music']) {
       if (typeof b[k] === 'string') config[k] = b[k];
     }
+    if (typeof b.subjectName === 'string') config.subjectName = normalizeSubjectName(b.subjectName);
     if (typeof b.periodEnabled === 'boolean') config.periodEnabled = b.periodEnabled;
     if (Array.isArray(b.memorialDays)) {
       config.memorialDays = b.memorialDays

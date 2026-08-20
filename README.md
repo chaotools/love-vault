@@ -134,14 +134,17 @@ data/                ★ 全部记忆（多用户时为 users/<内部 UUID>/）
 
 ## 数据模型速览
 
-- `config.json`：标题、名字、纪念日、AI 配置、密码哈希
+- `config.json`：标题、名字、记忆主角称呼 `subjectName`、纪念日、AI 配置、密码哈希
 - `profile.json`：basics（身高/体重/尺码…）+ health + period + 自定义字段 + story
 - `preferences.json` / `people.json` / `events.json` / `wishes.json` / `gifts.json` / `memories.json`
 
-人物关系方向约定：旧字段 `people.relation` 表示“TA → 当前人物”的关系，关系图以 TA 为中心、
+`config.subjectName` 是网站展示和 AI 回答使用的全局记忆主角称呼，保存时会自动去除首尾空格并限制为 30 个字符；
+留空或旧配置缺少该字段时显示 `TA`。它与 `profile.basics.nickname` 相互独立，不改变数据中的内部 `TA` 关系语义。
+
+人物关系方向约定：旧字段 `people.relation` 表示“TA → 当前人物”的关系，关系图以记忆主角为中心、
 箭头指向该人物；例如 `TA → 爸爸：爸爸`。`people.relations` 中的 `{ toId, type, note }`
 默认表示“当前人物 → 目标人物”的单向关系；可选的 `bidirectional: true` 表示双方关系，
-例如 `哥哥 ↔ 嫂子：夫妻`。关系图使用以 TA 为中心的放射布局，关系清单将人物路径与关系类型
+例如 `哥哥 ↔ 嫂子：夫妻`。关系图使用以记忆主角为中心的放射布局，关系清单将人物路径与关系类型
 分开展示；程序不会根据“妈妈”等关系自动推导反向关系，双向关系必须由用户明确勾选。
 
 均为带 `id/createdAt/updatedAt` 的 JSON 数组（profile 为对象），人可直接阅读，方便导出和二次利用。

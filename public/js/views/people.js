@@ -1,6 +1,6 @@
 // 人名关系库：TA身边的人，谁是谁、什么关系、生日、怎么认识的
 // 支持卡片 / 关系图两种视图；关系图是自研力导向（零依赖）
-import { el, get, post, patch, del, toast, openModal, field, input, select, textarea, emptyState } from '../core.js';
+import { el, get, post, patch, del, toast, openModal, field, input, select, textarea, emptyState, subjectLabel } from '../core.js';
 import { RelationGraph } from '../relation-graph.js';
 import { buildRelationModel, personRelationEdges, relationDetail, GROUPS as RELATION_GROUPS } from '../relation-model.mjs';
 
@@ -58,7 +58,7 @@ function build() {
   page.append(el('div', { class: 'page-head' },
     el('div', null,
       el('div', { class: 'page-title', text: '👨‍👩‍👧 人名关系库' }),
-      el('div', { class: 'page-desc', text: 'TA的家人朋友同事——聚会前翻一遍，"那个谁"再也不怕' })),
+      el('div', { class: 'page-desc', text: `${subjectLabel()}的家人朋友同事——聚会前翻一遍，"那个谁"再也不怕` })),
     el('button', { class: 'primary-btn', text: '＋ 加个人', onclick: () => editPerson(null) })));
 
   const seg = el('div', { class: 'seg' },
@@ -91,12 +91,12 @@ function build() {
   const graphBox = el('div', { class: 'people-graph', id: 'peopleGraph', hidden: true },
     el('canvas', { id: 'relationCanvas' }),
     el('button', { class: 'small-btn graph-reset', type: 'button', text: '重置布局', onclick: () => { if (graph) graph.resetLayout(); } }),
-    el('div', { class: 'graph-hint', text: '拖拽人物 · 滚轮缩放 · 单击选择 · 双击或详情按钮编辑 · TA 固定在中心' }));
+    el('div', { class: 'graph-hint', text: `拖拽人物 · 滚轮缩放 · 单击选择 · 双击或详情按钮编辑 · ${subjectLabel()} 固定在中心` }));
   const graphLegend = el('div', { class: 'graph-legend', id: 'graphLegend', hidden: true },
     el('span', { class: 'legend-outgoing', text: '● 发出的关系' }),
     el('span', { class: 'legend-incoming', text: '● 指向我的关系' }),
     el('span', { text: '↔ 双向关系（如夫妻/朋友）' }),
-    el('span', { text: 'TA 关系：TA → 人物' }));
+    el('span', { text: `${subjectLabel()} 关系：${subjectLabel()} → 人物` }));
   const relationDetails = el('div', { class: 'relation-details', id: 'relationDetails', hidden: true });
   const relationList = el('div', { class: 'relation-list', id: 'relationList', hidden: true });
   page.append(grid, graphBox, graphLegend, relationDetails, relationList);
@@ -132,7 +132,7 @@ function renderGraph() {
   grid.hidden = true;
   legend.hidden = false;
   list.hidden = false;
-  relationModel = buildRelationModel(people, filterGroup);
+  relationModel = buildRelationModel(people, filterGroup, subjectLabel());
   if (selectedRelationId && !relationModel.edges.some((edge) => edge.id === selectedRelationId)) selectedRelationId = null;
   if (selectedPersonId && !relationModel.nodes.some((node) => node.id === selectedPersonId)) selectedPersonId = null;
   if (!selectedRelationId && !selectedPersonId && details) details.hidden = true;
@@ -310,7 +310,7 @@ function buildRelationsList() {
   box.hidden = true;
   legend.hidden = true;
   details.hidden = true;
-  relationModel = buildRelationModel(people, filterGroup);
+  relationModel = buildRelationModel(people, filterGroup, subjectLabel());
   renderRelationList(relationModel, list, false);
 }
 
@@ -330,13 +330,15 @@ function buildGrid() {
   selectedRelationId = null;
   selectedPersonId = null;
   grid.innerHTML = '';
-  const cardRelationModel = buildRelationModel(people);
+  const cardRelationModel = buildRelationModel(people, 'all', subjectLabel());
   const shown = people.filter((p) => filterGroup === 'all' || p.group === filterGroup)
     .slice()
     .sort((a, b) => GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group));
 
   if (!shown.length) {
-    grid.append(emptyState('👥', people.length ? '该分组还没有人' : '从 TA 常提起的人开始记：名字 + 关系就够了'));
+    grid.append(emptyState('👥', people.length
+      ? '该分组还没有人'
+      : el('span', { text: `从 ${subjectLabel()} 常提起的人开始记：名字 + 关系就够了` })));
     return;
   }
   for (const p of shown) {
@@ -365,7 +367,7 @@ function buildGrid() {
 
 function editPerson(p) {
   const name = input({ type: 'text', value: p ? p.name : '', placeholder: '怎么称呼' });
-  const relation = input({ type: 'text', value: p ? p.relation : '', maxLength: '50', placeholder: 'TA 对当前人物的关系，如：爸爸 / 大学室友' });
+  const relation = input({ type: 'text', value: p ? p.relation : '', maxLength: '50', placeholder: `${subjectLabel()} 对当前人物的关系，如：爸爸 / 大学室友` });
   const group = select(GROUPS.map((g) => [g, g]), p ? p.group : (filterGroup !== 'all' ? filterGroup : '朋友'));
   const birthday = input({ type: 'text', value: p ? p.birthday : '', placeholder: '03-14 或 1998-03-14' });
   const lunarChk = el('input', { type: 'checkbox', id: 'pLunar' });
@@ -382,14 +384,14 @@ function editPerson(p) {
   });
   if (lunarChk.checked) birthday.placeholder = '农历月-日，如 03-02（三月初二）';
   const lunarRow = el('div', { class: 'lunar-chk-row' }, lunarLabel, leapLabel);
-  const howMet = input({ type: 'text', value: p ? p.howMet : '', placeholder: '怎么认识/交集，如：TA的高中同桌' });
-  const notes = textarea({ placeholder: 'TA提过的八卦、喜好、要注意的点…（可空）' }, p ? p.notes : '');
+  const howMet = input({ type: 'text', value: p ? p.howMet : '', placeholder: `怎么认识/交集，如：${subjectLabel()}的高中同桌` });
+  const notes = textarea({ placeholder: `${subjectLabel()}提过的八卦、喜好、要注意的点…（可空）` }, p ? p.notes : '');
 
   // —— 关联其他人（人物间连接） ——
   // relations: [{ toId, type, note, bidirectional? }]，用 id 引用解决同名歧义
   const relations = (p ? (p.relations || []) : []).map((r) => ({ ...r }));
   const incomingMutual = p
-    ? personRelationEdges(buildRelationModel(people), p.id)
+    ? personRelationEdges(buildRelationModel(people, 'all', subjectLabel()), p.id)
       .filter((edge) => edge.bidirectional === true && edge.to === p.id)
     : [];
   const hasReverseBidirectional = (relation) => p && relation.bidirectional === true
@@ -454,7 +456,7 @@ function editPerson(p) {
   const md = openModal({
     title: p ? '编辑 ' + p.name : '加一个人',
     content: el('div', null,
-      field('TA 对当前人物的关系', relation), field('分组', group),
+      field(`${subjectLabel()} 对当前人物的关系`, relation), field('分组', group),
       field('生日', birthday), lunarRow, field('相识', howMet), field('备注', notes),
       el('div', { class: 'field' }, el('label', { text: '当前人物与目标人物的关系（默认单向，可选双向）' }), relationBox, relAddRow)),
     buttons: [
