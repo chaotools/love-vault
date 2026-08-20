@@ -1,9 +1,10 @@
 // 统计接口：给"统计"视图提供聚合数据，全部在内存里算，不落盘
 const express = require('express');
+const { shanghaiParts, shanghaiStartOfDay, shanghaiMonthKey } = require('../date-resolution');
 
 function monthKey(iso) {
   const d = new Date(iso);
-  return isNaN(d.getTime()) ? null : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  return isNaN(d.getTime()) ? null : shanghaiMonthKey(d);
 }
 
 function statsRouter(getData) {
@@ -22,21 +23,24 @@ function statsRouter(getData) {
     const albums = d.albums || [];
 
     // 在一起天数
+    const now = new Date();
     let daysTogether = null;
     if (config.anniversary) {
-      const ann = new Date(config.anniversary + 'T00:00:00');
+      const ann = new Date(config.anniversary + 'T12:00:00+08:00');
       if (!isNaN(ann.getTime())) {
-        daysTogether = Math.max(0, Math.floor((new Date(new Date().toDateString()) - ann) / 86400000));
+        daysTogether = Math.max(0, Math.round((shanghaiStartOfDay(now) - shanghaiStartOfDay(ann)) / 86400000));
       }
     }
 
     // 最近 12 个月的媒体/大事记分布
-    const now = new Date();
+    const current = shanghaiParts(now);
     const monthly = [];
     for (let i = 11; i >= 0; i--) {
-      const d0 = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, '0')}`;
-      monthly.push({ ym: key, label: `${d0.getFullYear()}.${String(d0.getMonth() + 1).padStart(2, '0')}`, photos: 0, videos: 0, events: 0 });
+      const d0 = new Date(Date.UTC(current.year, current.month - 1 - i, 15));
+      const year = d0.getUTCFullYear();
+      const month = d0.getUTCMonth() + 1;
+      const key = `${year}-${String(month).padStart(2, '0')}`;
+      monthly.push({ ym: key, label: `${year}.${String(month).padStart(2, '0')}`, photos: 0, videos: 0, events: 0 });
     }
     const monthIndex = new Map(monthly.map((m) => [m.ym, m]));
     for (const m of memories) {

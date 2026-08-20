@@ -39,3 +39,17 @@ test('addMany 只写入一次集合，并在写入失败时恢复内存数据', 
     await fsp.rm(dir, { recursive: true, force: true });
   }
 });
+
+test('并发写入按队列持久化，不再争抢同一个临时文件', async () => {
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'love-vault-concurrent-'));
+  try {
+    const collection = new Collection(path.join(dir, 'items.json'));
+    await collection.load();
+    const results = await Promise.allSettled(Array.from({ length: 40 }, (_, i) => collection.add({ title: `item-${i}` })));
+    assert.equal(results.filter((result) => result.status === 'rejected').length, 0);
+    assert.equal(collection.list().length, 40);
+    assert.equal(JSON.parse(await fsp.readFile(path.join(dir, 'items.json'), 'utf8')).length, 40);
+  } finally {
+    await fsp.rm(dir, { recursive: true, force: true });
+  }
+});

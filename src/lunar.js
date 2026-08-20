@@ -1,8 +1,9 @@
 // 农历工具：基于 Node 自带 ICU 的 chinese 历法（full-icu），零第三方依赖
 // 英文格式的 month 部件带 "bis" 后缀即闰月（如 "2bis"），relatedYear 为农历年；
 // 中文格式直接给出"正月 / 闰二月"等名称。
-const EN = new Intl.DateTimeFormat('en-u-ca-chinese', { year: 'numeric', month: 'numeric', day: 'numeric' });
-const ZH = new Intl.DateTimeFormat('zh-CN-u-ca-chinese', { year: 'numeric', month: 'numeric', day: 'numeric' });
+const { TIME_ZONE, shanghaiParts, shanghaiDate, shanghaiStartOfDay, formatDate } = require('./date-resolution');
+const EN = new Intl.DateTimeFormat('en-u-ca-chinese', { year: 'numeric', month: 'numeric', day: 'numeric', timeZone: TIME_ZONE });
+const ZH = new Intl.DateTimeFormat('zh-CN-u-ca-chinese', { year: 'numeric', month: 'numeric', day: 'numeric', timeZone: TIME_ZONE });
 
 const MONTH_NAMES = ['', '正月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '冬月', '腊月'];
 const DAY_NAMES = ['', '初一', '初二', '初三', '初四', '初五', '初六', '初七', '初八', '初九', '初十',
@@ -10,7 +11,7 @@ const DAY_NAMES = ['', '初一', '初二', '初三', '初四', '初五', '初六
   '廿一', '廿二', '廿三', '廿四', '廿五', '廿六', '廿七', '廿八', '廿九', '三十'];
 
 function startOfDay(d) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return shanghaiStartOfDay(d);
 }
 
 // 解析单个日期为 {year, month, day, leap}（本地时区）
@@ -59,14 +60,15 @@ function parseMonthDay(str) {
 
 // 本地时区的 YYYY-MM-DD（不要用 toISOString，那会按 UTC 截断，东八区会差一天）
 function toDateStr(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return formatDate(shanghaiParts(date));
 }
 
 // 公历月日：fromDate（含）之后的最近一次
 function nextSolarMonthDay(month, day, from) {
   const fromDate = startOfDay(from);
-  let d = new Date(fromDate.getFullYear(), month - 1, day);
-  if (d < fromDate) d = new Date(fromDate.getFullYear() + 1, month - 1, day);
+  const parts = shanghaiParts(fromDate);
+  let d = shanghaiDate({ year: parts.year, month, day });
+  if (d < fromDate) d = shanghaiDate({ year: parts.year + 1, month, day });
   return d;
 }
 

@@ -12,15 +12,41 @@ const PROVIDERS = {
   custom:   { name: '自定义（任意 OpenAI 兼容接口）', baseUrl: '', models: [] }
 };
 
+function multiUserMode() {
+  return Boolean(process.env.WEB_SESSION_SECRET || process.env.MOBILE_SERVICE_TOKEN);
+}
+
+function sameOrigin(url, trusted) {
+  try { return new URL(url).origin === new URL(trusted).origin; } catch { return false; }
+}
+
+// 公开多用户服务不能让任意用户指定服务器要访问的地址，否则会形成 SSRF。
+// 管理员仍可通过 AI_BASE_URL 在服务器环境变量中设置受信任的专用网关。
+function validateUserAiSettings(ai = {}) {
+  const provider = typeof ai.provider === 'string' ? ai.provider : 'zhipu';
+  const preset = PROVIDERS[provider];
+  const baseUrl = typeof ai.baseUrl === 'string' ? ai.baseUrl.trim() : '';
+  if (!multiUserMode()) return { ok: true };
+  if (!preset || provider === 'custom') return { ok: false, error: '公开服务不支持用户自定义 AI 接口地址，请选择内置供应商' };
+  if (baseUrl && (!baseUrl.startsWith('https://') || !sameOrigin(baseUrl, preset.baseUrl))) {
+    return { ok: false, error: '公开服务的 AI 接口地址必须使用所选内置供应商的 HTTPS 官方域名' };
+  }
+  return { ok: true };
+}
+
 // 解析出实际生效的 AI 配置
 function resolveConfig(config) {
   const ai = (config && config.ai) || {};
   const provider = ai.provider || 'zhipu';
   const preset = PROVIDERS[provider] || PROVIDERS.custom;
+  const requestedBaseUrl = ai.baseUrl || preset.baseUrl || '';
+  const safeUserBaseUrl = multiUserMode() && (!preset.baseUrl || !sameOrigin(requestedBaseUrl, preset.baseUrl))
+    ? preset.baseUrl
+    : requestedBaseUrl;
   return {
     provider,
     providerName: preset.name,
-    baseUrl: (process.env.AI_BASE_URL || ai.baseUrl || preset.baseUrl || '').replace(/\/+$/, ''),
+    baseUrl: (process.env.AI_BASE_URL || safeUserBaseUrl || '').replace(/\/+$/, ''),
     apiKey: process.env.AI_API_KEY || decryptApiKey(ai.apiKey) || '',
     model: process.env.AI_MODEL || ai.model || (preset.models && preset.models[0]) || ''
   };
@@ -191,4 +217,4 @@ async function testConnection(resolved) {
   return reply.trim();
 }
 
-module.exports = { PROVIDERS, resolveConfig, isConfigured, ask, testConnection, chatCompletion, chatCompletionWithTools, buildBaseMessages, buildDataContext };
+module.exports = { PROVIDERS, resolveConfig, validateUserAiSettings, isConfigured, ask, testConnection, chatCompletion, chatCompletionWithTools, buildBaseMessages, buildDataContext };

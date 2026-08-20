@@ -2,6 +2,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const QRCode = require('qrcode');
+const { rateLimit } = require('./rate-limit');
 
 const COOKIE = 'vault_session';
 const SERVICE_TOKEN_HEADER = 'x-love-vault-service-token';
@@ -73,12 +74,17 @@ function csrfProtect(req, res, next) {
 
 function router() {
   const r = express.Router();
+  const byIp = (req) => req.ip || req.socket?.remoteAddress || 'anonymous';
+  const startLimit = rateLimit({ windowMs: 10 * 60_000, max: 10, name: '登录二维码获取', key: byIp });
+  // 前端每 1.8 秒轮询一次，5 分钟有效期内最多约 167 次，留出网络重试余量。
+  const statusLimit = rateLimit({ windowMs: 5 * 60_000, max: 240, name: '登录状态查询', key: byIp });
+  const exchangeLimit = rateLimit({ windowMs: 10 * 60_000, max: 15, name: '登录兑换', key: byIp });
   r.get('/status', (req, res) => res.json({
     enabled: authConfigured(),
     authenticated: !authConfigured() || Boolean(readSession(req))
   }));
   r.post('/logout', (req, res) => { res.setHeader('Set-Cookie', cookie('', 0)); res.json({ ok: true }); });
-  r.post('/web-login/start', async (req, res) => {
+  r.post('/web-login/start', startLimit, async (req, res) => {
     const broker = process.env.AUTH_BROKER_URL || '';
     if (!broker) return res.status(503).json({ error: '网页登录尚未配置' });
     try {
@@ -91,7 +97,7 @@ function router() {
     } catch { res.status(503).json({ error: '登录服务暂时不可用' }); }
   });
   // 用 POST body 传登录会话信息：secret 放在查询串会被反向代理/网关记进访问日志
-  r.post('/web-login/status', express.json(), async (req, res) => {
+  r.post('/web-login/status', statusLimit, express.json(), async (req, res) => {
     const broker = process.env.AUTH_BROKER_URL || '';
     const body = req.body || {};
     const id = String(body.id || '');
@@ -106,7 +112,7 @@ function router() {
       const body2 = await response.json(); res.status(response.status).json(body2);
     } catch { res.status(503).json({ error: '登录服务暂时不可用' }); }
   });
-  r.post('/web-exchange', express.json(), async (req, res) => {
+  r.post('/web-exchange', exchangeLimit, express.json(), async (req, res) => {
     const ticket = String((req.body || {}).ticket || '');
     const broker = process.env.AUTH_BROKER_URL || '';
     if (!ticket || !broker || !process.env.MOBILE_SERVICE_TOKEN || !secret()) return res.status(503).json({ error: '网页登录尚未配置' });

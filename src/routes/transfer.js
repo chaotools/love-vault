@@ -22,6 +22,23 @@ const MAX_IMPORT_BYTES = 1024 * 1024 * 1024;
 const MAX_UNCOMPRESSED_BYTES = 2 * 1024 * 1024 * 1024;
 const MAX_ARCHIVE_ENTRIES = 5000;
 const MAX_JSON_BYTES = 4 * 1024 * 1024;
+const COLLECTION_JSON = new Set(['preferences.json', 'people.json', 'events.json', 'wishes.json', 'gifts.json', 'memories.json', 'albums.json']);
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function validateBackupJson(name, value) {
+  if (COLLECTION_JSON.has(name)) {
+    if (!Array.isArray(value) || value.some((item) => !isPlainObject(item))) {
+      throw new Error(`${name} 必须是由对象组成的数组`);
+    }
+    return;
+  }
+  if ((name === 'config.json' || name === 'profile.json') && !isPlainObject(value)) {
+    throw new Error(`${name} 必须是对象`);
+  }
+}
 
 const importUpload = multer({
   storage: multer.diskStorage({
@@ -168,6 +185,7 @@ function transferRouter(vaultResolver) {
         const entry = entries.get(name);
         if (entrySize(entry) > MAX_JSON_BYTES) throw Object.assign(new Error(`${name} 超过 4 MB`), { status: 413 });
         const value = JSON.parse((await entry.buffer()).toString('utf8'));
+        validateBackupJson(name, value);
         // API Key 属于当前服务器秘密：备份中的 Key 一律丢弃，目标库已有 Key 则保留。
         if (name === 'config.json') {
           const config = cleanConfigForTransfer(value);
@@ -224,4 +242,4 @@ function transferRouter(vaultResolver) {
   return r;
 }
 
-module.exports = { transferRouter, KNOWN_JSON, cleanConfigForTransfer };
+module.exports = { transferRouter, KNOWN_JSON, cleanConfigForTransfer, validateBackupJson };

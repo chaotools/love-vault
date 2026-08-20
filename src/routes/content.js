@@ -5,6 +5,7 @@ const fsp = require('fs/promises');
 const crypto = require('crypto');
 const multer = require('multer');
 const media = require('../media');
+const { rateLimit } = require('../rate-limit');
 const { collectionRouter, str, bool, dateStr, inEnum } = require('./collections');
 
 // ---------- 偏好 ----------
@@ -121,6 +122,8 @@ const IMAGE_UPLOAD_EXT = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', '
 const ALLOWED_UPLOAD_EXT = new Set([...IMAGE_UPLOAD_EXT, ...media.VIDEO_EXT]);
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 200 * 1024 * 1024;
+const MAX_UPLOAD_FILES = 10;
+const MAX_UPLOAD_BATCH_SIZE = 300 * 1024 * 1024;
 
 const uploadError = (message, status = 400) => Object.assign(new Error(message), { status });
 const kindForExt = (ext) => IMAGE_UPLOAD_EXT.has(ext) ? 'image' : (media.VIDEO_EXT.has(ext) ? 'video' : null);
@@ -190,7 +193,7 @@ function memoriesRouter(collection) {
     res.json(await Promise.all(items.map((m) => publicMem(req, m))));
   });
 
-  r.post('/upload', upload.array('files'), async (req, res) => {
+  r.post('/upload', rateLimit({ windowMs: 10 * 60_000, max: 6, name: '上传' }), upload.array('files', MAX_UPLOAD_FILES), async (req, res) => {
     const files = req.files || [];
     const artifacts = new Set(files.map((file) => file.path));
     const removeArtifacts = async () => {
@@ -199,6 +202,9 @@ function memoriesRouter(collection) {
     let takenAts;
     try {
       if (!files.length) throw uploadError('请选择至少一个文件');
+      if (files.reduce((total, file) => total + file.size, 0) > MAX_UPLOAD_BATCH_SIZE) {
+        throw uploadError('单次上传总大小不能超过 300 MB', 413);
+      }
       // 在处理任何文件前验证所有手动日期，避免日期错误导致部分上传。
       takenAts = uploadTakenAts(req.body, files.length);
     } catch (e) {
@@ -253,7 +259,11 @@ function memoriesRouter(collection) {
     if (typeof b.eventId === 'string' || b.eventId === null) mem.eventId = b.eventId;
     if (typeof b.albumId === 'string' || b.albumId === null) mem.albumId = b.albumId;
     if (Array.isArray(b.tags)) mem.tags = b.tags.filter((t) => typeof t === 'string' && t.trim()).map((t) => t.trim());
-    if (typeof b.takenAt === 'string' && b.takenAt) mem.takenAt = new Date(b.takenAt).toISOString();
+    if (typeof b.takenAt === 'string' && b.takenAt) {
+      const takenAt = new Date(b.takenAt);
+      if (Number.isNaN(takenAt.getTime())) return res.status(400).json({ error: '拍摄时间无效' });
+      mem.takenAt = takenAt.toISOString();
+    }
     await resolve(req).update(mem.id, {});
     res.json(await publicMem(req, mem));
   });
