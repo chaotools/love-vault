@@ -1,5 +1,6 @@
 // 自研力导向有向关系图（零依赖）。
 // 边的语义是 source -> target；箭头指向 target，双向关系使用相反方向的弧线。
+import { radialRingRadii } from './relation-layout.mjs';
 
 const GROUP_COLORS = {
   家人: '#e8a06a',
@@ -117,8 +118,7 @@ export class RelationGraph {
       (groupOrder.get(a.group) ?? 9) - (groupOrder.get(b.group) ?? 9)
       || String(a.label || '').localeCompare(String(b.label || ''))
       || String(a.id).localeCompare(String(b.id)));
-    const maxRadius = Math.max(120, Math.min(this.width, this.height) * 0.42);
-    const ringRadius = (count, minimum) => Math.min(maxRadius, Math.max(minimum, count * 52 / (Math.PI * 2)));
+    const radii = radialRingRadii(this.width, this.height, direct.length, extended.length);
     const placeRing = (list, radius, offset) => {
       sortNodes(list).forEach((node, index) => {
         const angle = offset + (index / Math.max(1, list.length)) * Math.PI * 2;
@@ -130,13 +130,8 @@ export class RelationGraph {
       });
     };
 
-    if (direct.length) {
-      const inner = ringRadius(direct.length, Math.min(150, maxRadius));
-      placeRing(direct, inner, -Math.PI / 2);
-      if (extended.length) placeRing(extended, Math.max(inner + 78, ringRadius(extended.length, inner + 78)), 0);
-    } else {
-      placeRing(extended, ringRadius(extended.length, Math.min(170, maxRadius)), -Math.PI / 2);
-    }
+    if (direct.length) placeRing(direct, radii.directRadius, -Math.PI / 2);
+    if (extended.length) placeRing(extended, radii.extendedRadius, direct.length ? 0 : -Math.PI / 2);
   }
 
   _resize() {
