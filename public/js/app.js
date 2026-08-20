@@ -8,10 +8,11 @@ import * as peopleView from './views/people.js';
 import * as eventsView from './views/events.js';
 import * as wishesView from './views/wishes.js';
 import * as statsView from './views/stats.js';
+import * as calendarView from './views/calendar.js';
 import * as askView from './views/ask.js';
 
 const VIEWS = {
-  timeline, profile, preferences, people: peopleView, events: eventsView, wishes: wishesView, stats: statsView, ask: askView
+  timeline, profile, preferences, people: peopleView, events: eventsView, wishes: wishesView, stats: statsView, calendar: calendarView, ask: askView
 };
 
 const $ = (id) => document.getElementById(id);
@@ -117,6 +118,24 @@ async function renderBanners() {
           el('span', null, it.title + (it.sub ? ` · ${it.sub}` : ''), el('b', { text: ' ' + when })));
       });
     rows.forEach((b) => box.append(b));
+
+    // 记录活跃提醒（最近记录 / 连续天数）
+    const act = r.activity;
+    if (act) {
+      if (act.daysSinceLastRecord != null && act.daysSinceLastRecord >= 7) {
+        box.append(el('div', { class: 'banner' },
+          '📝',
+          el('span', null, `最近 ${act.daysSinceLastRecord} 天没给 TA 记新东西了`, el('b', { text: ' 别让回忆断更' }))));
+      } else if (act.streak >= 3) {
+        box.append(el('div', { class: 'banner' },
+          '🔥',
+          el('span', null, `已连续记录 ${act.streak} 天`, el('b', { text: act.streak >= 7 ? ' 太棒了' : ' 继续保持' }))));
+      } else if (act.streak > 0) {
+        box.append(el('div', { class: 'banner' },
+          '✏️',
+          el('span', null, `本月已记 ${act.monthCount} 条`, el('b', { text: ' 有空再记一笔吧' }))));
+      }
+    }
   } catch (e) { /* 未登录等场景忽略 */ }
 }
 

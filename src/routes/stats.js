@@ -83,6 +83,47 @@ function statsRouter(getData) {
       periodStat = { count: cycles.length, avgGap: Math.round(sum / gaps.length) };
     }
 
+    // —— 记录统计增强 ——
+
+    // 地点 Top（照片/大事记的 location）
+    const locationCount = {};
+    for (const m of memories) if (m.location) locationCount[m.location] = (locationCount[m.location] || 0) + 1;
+    for (const e of events) if (e.location) locationCount[e.location] = (locationCount[e.location] || 0) + 1;
+    const topLocations = Object.entries(locationCount).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([location, count]) => ({ location, count }));
+
+    // 偏好分类占比
+    const prefByCategory = {};
+    for (const p of preferences) prefByCategory[p.category || '其他'] = (prefByCategory[p.category || '其他'] || 0) + 1;
+
+    // 愿望实现率
+    const wishRate = wishes.length
+      ? { total: wishes.length, done: wishes.filter((w) => w.status === '已实现').length, rate: Math.round((wishes.filter((w) => w.status === '已实现').length / wishes.length) * 100) }
+      : null;
+
+    // 承诺兑现率
+    const promises = events.filter((e) => e.type === '承诺');
+    const promiseRate = promises.length
+      ? { total: promises.length, done: promises.filter((p) => p.done).length, rate: Math.round((promises.filter((p) => p.done).length / promises.length) * 100) }
+      : null;
+
+    // 人名关系分布
+    const peopleByGroup = {};
+    for (const p of people) peopleByGroup[p.group || '其他'] = (peopleByGroup[p.group || '其他'] || 0) + 1;
+
+    // TA 画像摘要卡（关键字段）
+    const basics = profile.basics || {};
+    const portrait = {
+      nickname: basics.nickname || '',
+      birthday: basics.birthday || '',
+      zodiac: basics.zodiac || '',
+      bloodType: basics.bloodType || '',
+      height: basics.height || '',
+      weight: basics.weight || '',
+      shoeSize: basics.shoeSize || ''
+    };
+    // 只保留有值的字段
+    const portraitCard = Object.fromEntries(Object.entries(portrait).filter(([, v]) => v));
+
     res.json({
       daysTogether,
       counts: {
@@ -103,7 +144,14 @@ function statsRouter(getData) {
       giftByDirection,
       prefByPolarity,
       topTags,
-      periodStat
+      periodStat,
+      // —— 增强 ——
+      topLocations,
+      prefByCategory,
+      wishRate,
+      promiseRate,
+      peopleByGroup,
+      portraitCard
     });
   });
 

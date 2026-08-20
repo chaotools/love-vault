@@ -1,4 +1,4 @@
-// 统计视图：在一起天数、各类计数、月度分布柱状图、标签云
+// 统计视图：在一起天数、各类计数、月度分布柱状图、标签云、记录活跃、TA 画像
 import { el, get, emptyState } from '../core.js';
 
 let stats = null;
@@ -7,7 +7,11 @@ let viewEl = null;
 export async function render(container) {
   viewEl = container;
   container.innerHTML = '';
-  try { stats = await get('/api/stats'); } catch (e) { container.append(emptyState('🔒', '请先登录')); return; }
+  try {
+    const [s, r] = await Promise.all([get('/api/stats'), get('/api/reminders?days=30').catch(() => null)]);
+    stats = s;
+    stats._activity = r ? r.activity : null;
+  } catch (e) { container.append(emptyState('🔒', '请先登录')); return; }
   build();
 }
 
@@ -33,6 +37,16 @@ function build() {
     statCard('📁', c.albums, '相册'));
   page.append(cards);
 
+  // 记录活跃卡
+  if (stats._activity) {
+    const act = stats._activity;
+    page.append(section('记录活跃'),
+      el('div', { class: 'stats-cards' },
+        statCard('🔥', act.streak + ' 天', '连续记录'),
+        statCard('📝', act.monthCount, '本月记录'),
+        statCard('🗓️', act.lastRecordAt || '—', '最近记录')));
+  }
+
   // 月度分布柱状图
   page.append(section('近 12 个月'), monthlyChart());
 
@@ -54,7 +68,49 @@ function build() {
         el('p', { style: 'font-size:14px;color:var(--ink-light)', text: `已记录 ${stats.periodStat.count} 个周期，平均间隔 ${stats.periodStat.avgGap} 天。` })));
   }
 
+  // —— 记录统计增强 ——
+
+  // 地点 Top
+  if (stats.topLocations && stats.topLocations.length) {
+    page.append(section('📍 一起去过最多的地方'),
+      el('div', { class: 'tag-cloud' },
+        ...stats.topLocations.map((l) => el('span', { class: 'tag-chip', text: `📍 ${l.location} ${l.count}` }))));
+  }
+
+  // 愿望实现率 / 承诺兑现率（进度卡）
+  const rateCards = el('div', { class: 'stats-grid' });
+  if (stats.wishRate) rateCards.append(rateCard('💝 愿望实现率', stats.wishRate.done, stats.wishRate.total, stats.wishRate.rate));
+  if (stats.promiseRate) rateCards.append(rateCard('🤙 承诺兑现率', stats.promiseRate.done, stats.promiseRate.total, stats.promiseRate.rate));
+  if (rateCards.children.length) page.append(section('完成进度'), rateCards);
+
+  // 偏好分类 + 人名分布 + TA 画像
+  const extraGrid = el('div', { class: 'stats-grid' });
+  if (stats.prefByCategory && Object.keys(stats.prefByCategory).length) extraGrid.append(distCard('💗 偏好分类', stats.prefByCategory));
+  if (stats.peopleByGroup && Object.keys(stats.peopleByGroup).length) extraGrid.append(distCard('👥 TA身边的人', stats.peopleByGroup));
+  if (stats.portraitCard && Object.keys(stats.portraitCard).length) extraGrid.append(portraitCard(stats.portraitCard));
+  if (extraGrid.children.length) page.append(section('关于 TA'), extraGrid);
+
   viewEl.append(page);
+}
+
+// 进度卡（愿望/承诺实现率）
+function rateCard(icon, done, total, rate) {
+  return el('div', { class: 'section-card' },
+    el('h3', { text: icon }),
+    el('div', { class: 'rate-num', text: rate + '%' }),
+    el('div', { class: 'rate-bar' }, el('div', { class: 'rate-fill', style: `width:${rate}%` })),
+    el('p', { style: 'font-size:12px;color:var(--muted);margin-top:6px', text: `${done} / ${total}` }));
+}
+
+// TA 画像卡
+function portraitCard(portrait) {
+  return el('div', { class: 'section-card' },
+    el('h3', { text: '🧸 TA 画像' }),
+    el('div', { class: 'kv-list' },
+      ...Object.entries(portrait).map(([k, v]) => {
+        const label = { nickname: '昵称', birthday: '生日', zodiac: '星座', bloodType: '血型', height: '身高', weight: '体重', shoeSize: '鞋码' }[k] || k;
+        return el('div', { class: 'kv' }, el('div', { class: 'k', text: label }), el('div', { class: 'v', text: v }));
+      })));
 }
 
 function section(title) {

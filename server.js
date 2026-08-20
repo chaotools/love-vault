@@ -17,6 +17,7 @@ const { searchRouter } = require('./src/routes/search');
 const { askRouter } = require('./src/routes/ask');
 const { statsRouter } = require('./src/routes/stats');
 const { transferRouter } = require('./src/routes/transfer');
+const { calendarRouter } = require('./src/routes/calendar');
 const { computeReminders } = require('./src/reminders');
 const { UserDataManager, buildVault, loadVault, migrateLegacyTo } = require('./src/user-data');
 const { migrateStoredApiKeys } = require('./src/secrets');
@@ -72,6 +73,7 @@ app.use('/api/albums', content.albumsRouter((req) => req.vault.albums));
 app.use('/api/search', searchRouter(getData));
 app.use('/api/ask', askRouter((req) => req.vault.config, getData));
 app.use('/api/stats', statsRouter(getData));
+app.use('/api/calendar', calendarRouter(getData));
 app.use('/api/transfer', transferRouter((req) => req.vault));
 
 // 提醒：把当前保险库快照交给纯计算模块
