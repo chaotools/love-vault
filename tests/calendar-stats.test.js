@@ -152,3 +152,27 @@ test('记录活跃：完全没有记录时返回空', () => {
   assert.equal(activity.streak, 0);
   assert.equal(activity.monthCount, 0);
 });
+
+test('日历：只有照片的日期会初始化，并按上海日期归类', async () => {
+  const data = sampleData();
+  // 这张照片是北京时间 8 月 4 日凌晨 00:30；UTC 容器中则仍是 8 月 3 日。
+  // 同一天没有任何大事记/生日/纪念日，用于覆盖媒体独占日期的初始化。
+  data.config.memorialDays = [];
+  data.people = [];
+  data.events = [];
+  data.memories = [{
+    id: 'night-photo', type: 'photo', filename: 'night.jpg',
+    takenAt: '2026-08-03T16:30:00.000Z', thumb: '/thumbs/night-photo.jpg'
+  }];
+  const srv = await startServer(calendarRouter, () => data);
+  try {
+    const r = await fetch(`http://127.0.0.1:${srv.address().port}/?year=2026&month=8`);
+    const body = await r.json();
+    assert.equal(r.status, 200);
+    assert.equal(body.days['2026-08-04'].length, 1);
+    assert.equal(body.days['2026-08-04'][0].type, 'media');
+    assert.equal(body.days['2026-08-03'], undefined);
+  } finally {
+    srv.close();
+  }
+});
