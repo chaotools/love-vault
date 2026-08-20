@@ -69,7 +69,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'addPerson',
-      description: '记录TA身边的一个新人物（家人/朋友/同事）；同名已存在时会被拒绝重复写入',
+      description: '记录TA身边的一个新人物（家人/朋友/同事）；同名已存在时会被拒绝重复写入。可选关联到已有的人物（relations）',
       parameters: {
         type: 'object',
         properties: {
@@ -77,7 +77,19 @@ const TOOLS = [
           relation: { type: 'string', description: '与TA的关系，如：妈妈' },
           group: { type: 'string', enum: PEOPLE_GROUPS, description: '分组' },
           howMet: { type: 'string', description: '怎么认识/交集' },
-          notes: { type: 'string', description: '备注' }
+          notes: { type: 'string', description: '备注' },
+          relations: {
+            type: 'array',
+            description: '关联到已有的人物（可选）：每个元素 { toId: 已存在人物的 id, type: 关系如"同事" }',
+            items: {
+              type: 'object',
+              properties: {
+                toId: { type: 'string', description: '已有的人物 id' },
+                type: { type: 'string', description: '关系类型，如：同事 / 表姐' }
+              },
+              required: ['toId', 'type']
+            }
+          }
         },
         required: ['name']
       }
@@ -202,12 +214,29 @@ async function executeTool(name, args, vault, { requestToolCalls, userDateText, 
       const repeated = repeatedInRequest(`person:${normalizeIdentity(personName)}`, 'people', personName);
       if (repeated) return repeated;
       if (list(vault.people).some((p) => p.name === personName)) return dup('people', personName);
+      // 关联已有的人物（relations）：校验 toId 存在
+      let relations = [];
+      if (Array.isArray(args.relations)) {
+        const validIds = new Set(list(vault.people).map((p) => p.id));
+        const seen = new Set();
+        for (const r of args.relations) {
+          if (!r || typeof r !== 'object') continue;
+          const toId = sanitize(r.toId);
+          const type = sanitize(r.type);
+          if (!validIds.has(toId) || !type) continue;
+          const key = toId + '\u0000' + type;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          relations.push({ toId, type });
+        }
+      }
       const item = await vault.people.add({
         name: personName,
         relation: sanitize(args.relation),
         group: inEnum(args.group, PEOPLE_GROUPS, '其他'),
         howMet: sanitize(args.howMet),
         notes: sanitize(args.notes),
+        relations,
         createdBy: AI_CREATED_BY
       });
       return { ok: true, module: 'people', title: item.name, detail: item.group };

@@ -18,7 +18,7 @@ function collectionRouter(collection, sanitize) {
 
   r.post('/', async (req, res) => {
     try {
-      const fields = sanitize(req.body || {});
+      const fields = sanitize(req.body || {}, false, null);
       const item = await resolve(req).add(fields);
       res.json(item);
     } catch (e) { res.status(400).json({ error: e.message }); }
@@ -27,7 +27,7 @@ function collectionRouter(collection, sanitize) {
   r.patch('/:id', async (req, res) => {
     const item = resolve(req).get(req.params.id);
     if (!item) return res.status(404).json({ error: 'not found' });
-    const patch = sanitize(req.body || {}, true);
+    const patch = sanitize(req.body || {}, true, item.id);
     // 过滤掉未传的字段，避免把已有值覆盖成 undefined
     const clean = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
     if (!Object.keys(clean).length) return res.status(400).json({ error: '没有可更新的字段' });
