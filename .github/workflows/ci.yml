@@ -33,7 +33,7 @@ jobs:
         run: |
           while IFS= read -r -d '' file; do
             node --input-type=module --check < "$file"
-          done < <(find public/js -type f -name '*.js' -print0)
+          done < <(find public/js -type f \( -name '*.js' -o -name '*.mjs' \) -print0)
       - name: Run tests
         run: npm test
       - name: Audit production dependencies

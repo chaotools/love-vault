@@ -69,7 +69,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'addPerson',
-      description: '记录TA身边的一个新人物（家人/朋友/同事）；同名已存在时会被拒绝重复写入。可选关联到已有的人物（relations）',
+      description: '记录TA身边的一个新人物（家人/朋友/同事）；同名已存在时会被拒绝重复写入。relation 表示当前人物对 TA 的关系，relations 表示当前人物指向其他人物的关系',
       parameters: {
         type: 'object',
         properties: {
@@ -80,7 +80,7 @@ const TOOLS = [
           notes: { type: 'string', description: '备注' },
           relations: {
             type: 'array',
-            description: '关联到已有的人物（可选）：每个元素 { toId: 已存在人物的 id, type: 关系如"同事" }',
+            description: '建立当前人物指向已有人物的关系（可选）：每个元素 { toId: 已存在人物的 id, type: 当前人物对目标人物的关系如"同事" }',
             items: {
               type: 'object',
               properties: {

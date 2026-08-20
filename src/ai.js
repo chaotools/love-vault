@@ -134,7 +134,18 @@ function buildDataContext({ config, profile, preferences, people, events, wishes
   push('TA的档案（含尺码等基本信息）', profileCtx);
 
   push('喜好与雷区', (preferences || []).map((p) => ({ 类型: p.polarity, 分类: p.category, 内容: p.title, 详情: p.detail || '' })));
-  push('TA身边的人', (people || []).map((p) => ({ 姓名: p.name, 关系: p.relation, 分组: p.group, 生日: p.birthday || '', 相识: p.howMet || '', 备注: p.notes || '' })));
+  push('TA身边的人', (people || []).map((p) => ({
+    姓名: p.name,
+    关系: p.relation,
+    分组: p.group,
+    生日: p.birthday || '',
+    相识: p.howMet || '',
+    备注: p.notes || '',
+    关联: (p.relations || []).map((relation) => {
+      const target = (people || []).find((item) => item.id === relation.toId);
+      return `${target ? target.name : '未知人物'}：${relation.type}${relation.note ? `（${relation.note}）` : ''}`;
+    }).join('；')
+  })));
   push('大事记与承诺', (events || []).map((e) => ({ 日期: (e.date || '').slice(0, 10), 标题: e.title, 类型: e.type, 完成: e.type === '承诺' ? !!e.done : undefined, 地点: e.location || '', 详情: e.description || '' })));
   push('愿望清单', (wishes || []).map((w) => ({ 愿望: w.title, 状态: w.status, 来源: w.source || '', 备注: w.note || '' })));
   push('礼物记录', (gifts || []).map((g) => ({ 礼物: g.title, 方向: g.direction, 场合: g.occasion || '', 日期: (g.date || '').slice(0, 10) })));

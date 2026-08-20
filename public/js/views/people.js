@@ -2,14 +2,18 @@
 // 支持卡片 / 关系图两种视图；关系图是自研力导向（零依赖）
 import { el, get, post, patch, del, toast, openModal, field, input, select, textarea, emptyState } from '../core.js';
 import { RelationGraph } from '../relation-graph.js';
+import { buildRelationModel, relationDetail, GROUPS as RELATION_GROUPS } from '../relation-model.mjs';
 
-const GROUPS = ['家人', '朋友', '同事', '其他'];
+const GROUPS = RELATION_GROUPS;
 let people = [];
 let filterGroup = 'all';
-let viewMode = 'card'; // 'card' | 'graph'
+let viewMode = 'card'; // 'card' | 'graph' | 'list'
 let graph = null;
 let graphStopTimer = null;
 let viewEl = null;
+let relationModel = null;
+let selectedRelationId = null;
+let selectedPersonId = null;
 
 // 同名区分：按名字分组，同名的人 label 加 ①②③
 function disambiguatedLabel(p, idx) {
@@ -24,6 +28,9 @@ export async function render(container, params) {
   viewEl = container;
   container.innerHTML = '';
   destroyGraph();
+  relationModel = null;
+  selectedRelationId = null;
+  selectedPersonId = null;
   try { people = await get('/api/people'); } catch (e) { container.append(emptyState('🔒', '请先登录')); return; }
   build();
   if (params && params.focus) {
@@ -60,17 +67,21 @@ function build() {
   seg.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
     filterGroup = b.dataset.g;
     seg.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b));
-    if (viewMode === 'graph') renderGraph(); else buildGrid();
+    if (viewMode === 'graph') renderGraph();
+    else if (viewMode === 'list') buildRelationsList();
+    else buildGrid();
   }));
 
-  // 卡片 / 关系图切换
+  // 卡片 / 关系图 / 关系清单切换
   const viewSeg = el('div', { class: 'seg' },
     el('button', { 'data-v': 'card', class: viewMode === 'card' ? 'active' : '', text: '卡片' }),
-    el('button', { 'data-v': 'graph', class: viewMode === 'graph' ? 'active' : '', text: '关系图' }));
+    el('button', { 'data-v': 'graph', class: viewMode === 'graph' ? 'active' : '', text: '关系图' }),
+    el('button', { 'data-v': 'list', class: viewMode === 'list' ? 'active' : '', text: '关系清单' }));
   viewSeg.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
     viewMode = b.dataset.v;
     viewSeg.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b));
     if (viewMode === 'graph') renderGraph();
+    else if (viewMode === 'list') { destroyGraph(); buildRelationsList(); }
     else { destroyGraph(); buildGrid(); }
   }));
 
@@ -79,10 +90,18 @@ function build() {
   const grid = el('div', { class: 'people-grid', id: 'peopleGrid' });
   const graphBox = el('div', { class: 'people-graph', id: 'peopleGraph', hidden: true },
     el('canvas', { id: 'relationCanvas' }),
-    el('div', { class: 'graph-hint', text: '🖱 拖拽节点调整位置 · 滚轮缩放 · 双击节点看详情 · 同名自动加①②③' }));
-  page.append(grid, graphBox);
+    el('div', { class: 'graph-hint', text: '拖拽节点 · 滚轮缩放 · 单击选择 · 双击编辑 · 箭头指向关系目标' }));
+  const graphLegend = el('div', { class: 'graph-legend', id: 'graphLegend', hidden: true },
+    el('span', { class: 'legend-outgoing', text: '● 发出的关系' }),
+    el('span', { class: 'legend-incoming', text: '● 指向我的关系' }),
+    el('span', { text: 'TA 关系：人物 → TA' }));
+  const relationDetails = el('div', { class: 'relation-details', id: 'relationDetails', hidden: true });
+  const relationList = el('div', { class: 'relation-list', id: 'relationList', hidden: true });
+  page.append(grid, graphBox, graphLegend, relationDetails, relationList);
   viewEl.append(page);
-  if (viewMode === 'graph') renderGraph(); else buildGrid();
+  if (viewMode === 'graph') renderGraph();
+  else if (viewMode === 'list') buildRelationsList();
+  else buildGrid();
 }
 
 function destroyGraph() {
@@ -98,57 +117,190 @@ export function destroy() {
   destroyGraph();
 }
 
-// 关系图：自研力导向
+// 关系图：有向边、双向弧线和选中详情共用同一份投影数据。
 function renderGraph() {
   destroyGraph();
   const box = document.getElementById('peopleGraph');
   const grid = document.getElementById('peopleGrid');
+  const legend = document.getElementById('graphLegend');
+  const list = document.getElementById('relationList');
+  const details = document.getElementById('relationDetails');
   if (!box) return;
   box.hidden = false;
   grid.hidden = true;
+  legend.hidden = false;
+  list.hidden = false;
+  relationModel = buildRelationModel(people, filterGroup);
+  if (selectedRelationId && !relationModel.edges.some((edge) => edge.id === selectedRelationId)) selectedRelationId = null;
+  if (selectedPersonId && !relationModel.nodes.some((node) => node.id === selectedPersonId)) selectedPersonId = null;
+  if (!selectedRelationId && !selectedPersonId && details) details.hidden = true;
+  renderRelationList(relationModel, list, true);
   const canvas = document.getElementById('relationCanvas');
   if (!canvas) return;
-
-  const nodes = [];
-  const edges = [];
-  // 中心"TA"虚拟节点
-  nodes.push({ id: 'TA', label: 'TA', group: 'TA', fixed: true, center: true });
-  const shown = people.filter((p) => filterGroup === 'all' || p.group === filterGroup);
-  for (const p of shown) {
-    nodes.push({ id: p.id, label: disambiguatedLabel(p, 0), group: p.group || '其他' });
-    // 中心节点连接所有人
-    edges.push({ from: 'TA', to: p.id, label: p.relation || '' });
-    // 人物间连接（relations）
-    for (const r of (p.relations || [])) {
-      const target = people.find((x) => x.id === r.toId);
-      if (!target) continue;
-      if (filterGroup === 'all' || [p.group, target.group].includes(filterGroup)) {
-        // 去重：只画一次（避免 A→B 和 B→A 都画，除非方向不同）
-        const already = edges.some((e) => (e.from === r.toId && e.to === p.id) || (e.from === p.id && e.to === r.toId));
-        if (!already) edges.push({ from: p.id, to: r.toId, label: r.type });
-      }
-    }
-  }
 
   graph = new RelationGraph(canvas, {
     onNodeClick: (id) => {
       if (id === 'TA') return;
-      const p = people.find((x) => x.id === id);
-      if (p) editPerson(p);
+      const person = people.find((item) => item.id === id);
+      if (person) editPerson(person);
     },
-    onNodeHover: (id) => { /* 预留 */ }
+    onNodeSelect: (node) => {
+      selectedRelationId = null;
+      selectedPersonId = node && node.id;
+      showNodeDetails(node && node.id);
+    },
+    onEdgeSelect: (edge) => {
+      selectedRelationId = edge && edge.id;
+      selectedPersonId = null;
+      showEdgeDetails(edge);
+      updateRelationListSelection();
+    },
+    onEdgeHover: (edge) => {
+      if (!selectedRelationId) {
+        if (edge) showEdgeDetails(edge, true);
+        else if (selectedPersonId) showNodeDetails(selectedPersonId);
+        else showEdgeDetails(null, true);
+      }
+    }
   });
-  graph.setData(nodes, edges);
-  // 初始自动收敛后再允许拖拽（让布局先稳定）
+  graph.setData(relationModel.nodes, relationModel.edges);
+  if (selectedRelationId && relationModel.edges.some((edge) => edge.id === selectedRelationId)) {
+    graph.selectEdge(selectedRelationId, false);
+    showEdgeDetails(relationModel.edges.find((edge) => edge.id === selectedRelationId));
+  }
   const currentGraph = graph;
   graphStopTimer = setTimeout(() => {
     if (graph === currentGraph) currentGraph.stop();
   }, 2500);
 }
 
+function showEdgeDetails(edge, transient = false) {
+  const details = document.getElementById('relationDetails');
+  if (!details) return;
+  if (!edge) {
+    if (!selectedRelationId && !selectedPersonId) details.hidden = true;
+    return;
+  }
+  details.hidden = false;
+  details.innerHTML = '';
+  details.append(
+    el('div', { class: 'relation-details-title', text: '关系详情' }),
+    el('div', { class: 'relation-details-main', text: relationDetail(edge) }),
+    edge.note ? el('div', { class: 'relation-details-note', text: '备注：' + edge.note }) : null
+  );
+}
+
+function relationRow(edge, onSelect) {
+  const row = el('button', { type: 'button', class: 'relation-row' });
+  row.append(
+    el('span', { class: 'relation-row-source', text: edge.sourceLabel }),
+    el('span', { class: 'relation-row-arrow', text: '→' }),
+    el('span', { class: 'relation-row-type', text: edge.label || '未填写关系' }),
+    el('span', { class: 'relation-row-arrow', text: '→' }),
+    el('span', { class: 'relation-row-target', text: edge.targetLabel })
+  );
+  row.addEventListener('click', onSelect);
+  return row;
+}
+
+function updateRelationListSelection() {
+  document.querySelectorAll('#relationList .relation-row').forEach((row) => {
+    row.classList.toggle('selected', row.dataset.relationId === selectedRelationId);
+  });
+}
+
+function showNodeDetails(id) {
+  const details = document.getElementById('relationDetails');
+  if (!details || !relationModel || !id) return;
+  const node = relationModel.nodes.find((item) => item.id === id);
+  if (!node) return;
+  const outgoing = relationModel.edges.filter((edge) => edge.from === id);
+  const incoming = relationModel.edges.filter((edge) => edge.to === id);
+  const section = (title, edges) => {
+    const box = el('div', { class: 'relation-detail-group' }, el('div', { class: 'relation-detail-group-title', text: title }));
+    if (!edges.length) box.append(el('div', { class: 'relation-detail-empty', text: '暂无' }));
+    for (const edge of edges) {
+      const row = relationRow(edge, () => focusRelation(edge.id));
+      box.append(row);
+    }
+    return box;
+  };
+  details.hidden = false;
+  details.innerHTML = '';
+  details.append(
+    el('div', { class: 'relation-details-title', text: `“${node.label}”的关系` }),
+    section('我指向的人', outgoing),
+    section('指向我的人', incoming)
+  );
+}
+
+function showRelationListEmpty(list) {
+  list.append(emptyState('🔗', '还没有可显示的关系'));
+}
+
+function renderRelationList(model, list, compact = false) {
+  list.innerHTML = '';
+  list.hidden = false;
+  list.append(el('div', { class: 'relation-list-title', text: compact ? '关系清单（点击查看详情）' : '全部关系' }));
+  if (model.filterHint) list.append(el('div', { class: 'relation-list-hint', text: model.filterHint }));
+  if (!model.edges.length) return showRelationListEmpty(list);
+  const rows = el('div', { class: 'relation-list-rows' });
+  for (const edge of model.edges) {
+    const row = relationRow(edge, () => focusRelation(edge.id, viewMode === 'list'));
+    row.dataset.relationId = edge.id;
+    rows.append(row);
+  }
+  list.append(rows);
+  updateRelationListSelection();
+}
+
+function focusRelation(id, switchToGraph = false) {
+  selectedRelationId = id;
+  selectedPersonId = null;
+  if (switchToGraph && viewMode === 'list') {
+    viewMode = 'graph';
+    build();
+    setTimeout(() => { if (graph) graph.selectEdge(id); }, 0);
+    return;
+  }
+  if (graph) graph.selectEdge(id);
+  else {
+    const edge = relationModel && relationModel.edges.find((item) => item.id === id);
+    showEdgeDetails(edge);
+  }
+  updateRelationListSelection();
+}
+
+function buildRelationsList() {
+  const grid = document.getElementById('peopleGrid');
+  const box = document.getElementById('peopleGraph');
+  const legend = document.getElementById('graphLegend');
+  const list = document.getElementById('relationList');
+  const details = document.getElementById('relationDetails');
+  if (!grid || !box || !list) return;
+  grid.hidden = true;
+  box.hidden = true;
+  legend.hidden = true;
+  details.hidden = true;
+  relationModel = buildRelationModel(people, filterGroup);
+  renderRelationList(relationModel, list, false);
+}
+
 function buildGrid() {
   const grid = document.getElementById('peopleGrid');
+  const box = document.getElementById('peopleGraph');
+  const legend = document.getElementById('graphLegend');
+  const details = document.getElementById('relationDetails');
+  const list = document.getElementById('relationList');
   if (!grid) return;
+  grid.hidden = false;
+  if (box) box.hidden = true;
+  if (legend) legend.hidden = true;
+  if (details) details.hidden = true;
+  if (list) list.hidden = true;
+  relationModel = null;
+  selectedRelationId = null;
+  selectedPersonId = null;
   grid.innerHTML = '';
   const shown = people.filter((p) => filterGroup === 'all' || p.group === filterGroup)
     .slice()
@@ -182,7 +334,7 @@ function buildGrid() {
 
 function editPerson(p) {
   const name = input({ type: 'text', value: p ? p.name : '', placeholder: '怎么称呼' });
-  const relation = input({ type: 'text', value: p ? p.relation : '', placeholder: '和TA的关系，如：妈妈 / 大学室友' });
+  const relation = input({ type: 'text', value: p ? p.relation : '', placeholder: '当前人物对 TA 的关系，如：妈妈 / 大学室友' });
   const group = select(GROUPS.map((g) => [g, g]), p ? p.group : (filterGroup !== 'all' ? filterGroup : '朋友'));
   const birthday = input({ type: 'text', value: p ? p.birthday : '', placeholder: '03-14 或 1998-03-14' });
   const lunarChk = el('input', { type: 'checkbox', id: 'pLunar' });
@@ -210,7 +362,7 @@ function editPerson(p) {
   const renderRelations = () => {
     relationBox.innerHTML = '';
     if (!relations.length) {
-      relationBox.append(el('p', { style: 'font-size:13px;color:var(--muted)', text: '还没有关联其他人（可选）。同名区分靠这个，比如两个"王叔叔"可以分别关联到不同的人' }));
+      relationBox.append(el('p', { style: 'font-size:13px;color:var(--muted)', text: '还没有关系。添加后会记录为“当前人物 → 目标人物”，同名人物按编号区分' }));
     }
     relations.forEach((r, i) => {
       const target = people.find((x) => x.id === r.toId);
@@ -251,7 +403,7 @@ function editPerson(p) {
     content: el('div', null,
       field('称呼', name), field('关系', relation), field('分组', group),
       field('生日', birthday), lunarRow, field('相识', howMet), field('备注', notes),
-      el('div', { class: 'field' }, el('label', { text: '关联其他人（区分同名）' }), relationBox, relAddRow)),
+      el('div', { class: 'field' }, el('label', { text: '当前人物 → 目标人物（区分同名）' }), relationBox, relAddRow)),
     buttons: [
       p ? { el: el('button', { class: 'ghost-btn danger', text: '删除', onclick: async () => {
         if (!confirm(`删除「${p.name}」？`)) return;
