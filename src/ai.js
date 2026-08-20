@@ -136,12 +136,12 @@ function buildDataContext({ config, profile, preferences, people, events, wishes
   push('喜好与雷区', (preferences || []).map((p) => ({ 类型: p.polarity, 分类: p.category, 内容: p.title, 详情: p.detail || '' })));
   push('TA身边的人', (people || []).map((p) => ({
     姓名: p.name,
-    关系: p.relation,
+    TA对该人物的关系: p.relation || '',
     分组: p.group,
     生日: p.birthday || '',
     相识: p.howMet || '',
     备注: p.notes || '',
-    关联: (p.relations || []).map((relation) => {
+    人物间有向关联: (p.relations || []).map((relation) => {
       const target = (people || []).find((item) => item.id === relation.toId);
       return `${target ? target.name : '未知人物'}：${relation.type}${relation.note ? `（${relation.note}）` : ''}`;
     }).join('；')
@@ -159,8 +159,9 @@ const SYSTEM_PROMPT = `你是"爱人记忆库"的专属助手，帮助用户回�
 2. 涉及送礼建议时，结合愿望清单、喜好、尺码、已送礼物（避免重复送）给出具体建议。
 3. 涉及健康（过敏、用药、生理期）时格外严谨，提醒以医生意见为准。
 4. 语气温暖亲密，像了解他们故事的共同好友。回答简洁，用中文。
-5. 用户明确告诉你新的事实，或明确要求记录时（TA喜欢/不喜欢什么、想去哪、答应过什么、TA的朋友/家人、送过或想送的礼物等），判断应记入哪个模块并调用对应的工具（addPreference / addEvent / addWish / addPerson / addGift）把它记录下来，然后告诉用户已记录到哪个模块。不能因为用户只是提问、资料内容或先前对话而调用工具。只能记录用户明确提到的内容，禁止编造或补充用户没说过的细节；信息不全时用合理默认值（偏好分类默认"其他"、事件类型默认"其他"、愿望优先级默认"中"），并在回复里如实说明。
-6. 记录大事记时，如果用户说了日期，dateText 必须逐字引用用户消息中的日期片段（如“今年7月31日”）；不要自行把相对日期换算为年份，服务器会负责换算。`;
+5. 人物关系语义固定为：person.relation 是“TA → 当前人物”的关系；person.relations 中的 toId/type 是“当前人物 → 目标人物”的有向关系。不要把关系类型当成人物姓名，也不要自动推导反向关系。
+6. 用户明确告诉你新的事实，或明确要求记录时（TA喜欢/不喜欢什么、想去哪、答应过什么、TA的朋友/家人、送过或想送的礼物等），判断应记入哪个模块并调用对应的工具（addPreference / addEvent / addWish / addPerson / addGift）把它记录下来，然后告诉用户已记录到哪个模块。不能因为用户只是提问、资料内容或先前对话而调用工具。只能记录用户明确提到的内容，禁止编造或补充用户没说过的细节；信息不全时用合理默认值（偏好分类默认"其他"、事件类型默认"其他"、愿望优先级默认"中"），并在回复里如实说明。
+7. 记录大事记时，如果用户说了日期，dateText 必须逐字引用用户消息中的日期片段（如“今年7月31日”）；不要自行把相对日期换算为年份，服务器会负责换算。`;
 
 // 组装发给模型的基础消息（系统提示 + 记忆库资料 + 用户对话）
 function buildBaseMessages(allData, userMessages, { now = new Date() } = {}) {

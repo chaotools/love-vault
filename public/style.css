@@ -611,11 +611,13 @@ body::before {
 .rel-chip { font-size: 11px; background: var(--blush); color: var(--rose-dark); padding: 2px 8px; border-radius: var(--radius-full); }
 .people-graph { position: relative; height: 520px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-card); overflow: hidden; }
 .people-graph canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+.graph-reset { position: absolute; top: 12px; right: 12px; z-index: 1; }
 .graph-hint { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font-size: 12px; color: var(--muted); pointer-events: none; }
 .graph-legend { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 10px; color: var(--muted); font-size: 12px; }
 .graph-legend .legend-outgoing { color: var(--rose-dark); }
 .graph-legend .legend-incoming { color: #4e83b7; }
 .relation-details { margin-top: 10px; padding: 14px 16px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-card); }
+.relation-details-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .relation-details-title, .relation-list-title { color: var(--ink); font-size: 14px; font-weight: 700; }
 .relation-details-main { margin-top: 6px; color: var(--rose-dark); font-size: 16px; font-weight: 700; }
 .relation-details-note, .relation-list-hint, .relation-detail-empty { margin-top: 6px; color: var(--muted); font-size: 12px; }
@@ -626,9 +628,9 @@ body::before {
 .relation-row { display: flex; align-items: center; gap: 6px; width: 100%; padding: 8px 10px; border: 1px solid transparent; border-radius: 8px; background: var(--bg); color: var(--ink); cursor: pointer; text-align: left; font: inherit; }
 .relation-row:hover, .relation-row.selected { border-color: var(--rose); background: var(--rose-soft); }
 .relation-row-source, .relation-row-target { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.relation-row-type { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--rose-dark); }
+.relation-row-target { flex: 1; }
+.relation-row-type { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--rose-dark); }
 .relation-row-arrow { flex: 0 0 auto; color: var(--muted); }
-.relation-row .relation-row-type { flex: 1; }
 .rel-edit-box { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
 .rel-edit-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--bg); border-radius: var(--radius-sm); }
 .rel-edit-row .rel-target { font-size: 13px; font-weight: 600; min-width: 72px; color: var(--ink); }

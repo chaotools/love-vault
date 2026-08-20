@@ -90,20 +90,53 @@ export class RelationGraph {
     this.hovered = null;
     this.lastNodeClick = null;
     this._resize();
-    this._centerNodes();
+    this._layoutRadial();
+    this.start();
+  }
+
+  _layoutRadial() {
+    const center = this.nodes.find((node) => node.center) || null;
     const cx = this.width / 2;
     const cy = this.height / 2;
-    this.nodes.forEach((node, index) => {
-      if (node.x === undefined || node.y === undefined) {
-        const angle = (index / Math.max(1, this.nodes.length)) * Math.PI * 2;
-        const radius = 60 + (index % 5) * 30;
+    if (center) {
+      center.x = cx;
+      center.y = cy;
+      center.fixed = true;
+      center.vx = 0;
+      center.vy = 0;
+    }
+
+    const people = this.nodes.filter((node) => !node.center).slice();
+    const directIds = new Set((center ? this.edges : [])
+      .filter((edge) => edge.kind === 'ta' && edge.from === center.id)
+      .map((edge) => edge.to));
+    const direct = people.filter((node) => directIds.has(node.id));
+    const extended = people.filter((node) => !directIds.has(node.id));
+    const groupOrder = new Map([['家人', 0], ['朋友', 1], ['同事', 2], ['其他', 3]]);
+    const sortNodes = (list) => list.sort((a, b) =>
+      (groupOrder.get(a.group) ?? 9) - (groupOrder.get(b.group) ?? 9)
+      || String(a.label || '').localeCompare(String(b.label || ''))
+      || String(a.id).localeCompare(String(b.id)));
+    const maxRadius = Math.max(120, Math.min(this.width, this.height) * 0.42);
+    const ringRadius = (count, minimum) => Math.min(maxRadius, Math.max(minimum, count * 52 / (Math.PI * 2)));
+    const placeRing = (list, radius, offset) => {
+      sortNodes(list).forEach((node, index) => {
+        const angle = offset + (index / Math.max(1, list.length)) * Math.PI * 2;
         node.x = cx + Math.cos(angle) * radius;
         node.y = cy + Math.sin(angle) * radius;
-      }
-      node.vx = node.vx || 0;
-      node.vy = node.vy || 0;
-    });
-    this.start();
+        node.fixed = false;
+        node.vx = 0;
+        node.vy = 0;
+      });
+    };
+
+    if (direct.length) {
+      const inner = ringRadius(direct.length, Math.min(150, maxRadius));
+      placeRing(direct, inner, -Math.PI / 2);
+      if (extended.length) placeRing(extended, Math.max(inner + 78, ringRadius(extended.length, inner + 78)), 0);
+    } else {
+      placeRing(extended, ringRadius(extended.length, Math.min(170, maxRadius)), -Math.PI / 2);
+    }
   }
 
   _resize() {
@@ -270,6 +303,17 @@ export class RelationGraph {
     this.rafId = requestAnimationFrame(() => this._step());
   }
 
+  resetLayout() {
+    this.stop();
+    this.scale = 1;
+    this.offsetX = 0;
+    this.offsetY = 0;
+    this._resize();
+    this._layoutRadial();
+    this._draw();
+    this.start();
+  }
+
   stop() {
     this.running = false;
     if (this.rafId) cancelAnimationFrame(this.rafId);
@@ -373,6 +417,13 @@ export class RelationGraph {
     const point = this._toCanvasPos(e);
     const node = this._hitNode(point);
     if (node) {
+      if (node.center) {
+        this.lastNodeClick = null;
+        this.selectNode(node.id);
+        this.canvas.style.cursor = 'default';
+        e.preventDefault();
+        return;
+      }
       this.dragged = node;
       this.dragStart = point;
       this.dragMoved = false;

@@ -24,7 +24,8 @@ const PEOPLE_GROUP = ['家人', '朋友', '同事', '其他'];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // 人物间连接 sanitize：relations: [{ toId, type, note }]
-// 方向语义：当前人物 -> toId，type 是当前人物对目标人物的关系。
+// 方向语义：当前人物 -> toId，type 是当前人物对目标人物的关系；
+// people.relation 另表示 TA -> 当前人物的关系。
 // 校验：toId 是合法 uuid、type 非空、toId 不能是自己、同对不重复
 function relationsSanitize(raw, selfId) {
   if (raw === undefined) return undefined;
@@ -59,7 +60,7 @@ const peopleRouter = (c) => {
   const resolve = (req) => typeof c === 'function' ? c(req) : c;
   const inner = collectionRouter(c, (b, isPatch, selfId) => ({
     name: str(b.name),
-    relation: str(b.relation),
+    relation: typeof b.relation === 'string' ? b.relation.trim().slice(0, 50) : undefined,
     group: inEnum(b.group, PEOPLE_GROUP),
     birthday: str(b.birthday),           // 形如 03-14 或 1998-03-14
     lunar: bool(b.lunar),                // 生日按农历过

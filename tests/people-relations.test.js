@@ -113,3 +113,19 @@ test('删除人物时由服务端清理其他人物的关联', async () => {
     assert.deepEqual(srv.vault.items.find((person) => person.id === 'bbb22222-2222-4222-8222-222222222222').relations, []);
   } finally { srv.close(); }
 });
+
+test('TA 对人物的关系会去空格并限制为 50 个字符', async () => {
+  const srv = await startServer();
+  try {
+    const r = await fetch(`http://127.0.0.1:${srv.address().port}/api/people`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: '小赵', relation: `  ${'关系'.repeat(40)}  `, group: '朋友' })
+    });
+    assert.equal(r.status, 200);
+    const body = await r.json();
+    assert.equal(body.relation.length, 50);
+    assert.equal(body.relation.startsWith('关系'), true);
+    assert.equal(body.relation.endsWith(' '), false);
+  } finally { srv.close(); }
+});

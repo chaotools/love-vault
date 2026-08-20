@@ -74,7 +74,7 @@ const TOOLS = [
         type: 'object',
         properties: {
           name: { type: 'string', description: '称呼' },
-          relation: { type: 'string', description: 'TA 对当前人物的关系，如：爸爸 / 妈妈' },
+          relation: { type: 'string', maxLength: 50, description: 'TA 对当前人物的关系，如：爸爸 / 妈妈' },
           group: { type: 'string', enum: PEOPLE_GROUPS, description: '分组' },
           howMet: { type: 'string', description: '怎么认识/交集' },
           notes: { type: 'string', description: '备注' },
@@ -232,7 +232,7 @@ async function executeTool(name, args, vault, { requestToolCalls, userDateText, 
       }
       const item = await vault.people.add({
         name: personName,
-        relation: sanitize(args.relation),
+        relation: sanitize(args.relation).slice(0, 50),
         group: inEnum(args.group, PEOPLE_GROUPS, '其他'),
         howMet: sanitize(args.howMet),
         notes: sanitize(args.notes),
