@@ -1,0 +1,118 @@
+// 人物关系的展示投影：图和清单共用，确保来源、目标、筛选规则始终一致。
+
+const GROUPS = ['家人', '朋友', '同事', '其他'];
+
+function disambiguatedLabels(people) {
+  const groups = new Map();
+  for (const person of people) {
+    const name = typeof person.name === 'string' ? person.name : '';
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name).push(person);
+  }
+  const labels = new Map();
+  const marks = ['①', '②', '③', '④', '⑤'];
+  for (const group of groups.values()) {
+    const sorted = group.slice().sort((a, b) => String(a.id || '').localeCompare(String(b.id || '')));
+    sorted.forEach((person, index) => {
+      labels.set(person.id, group.length > 1 ? `${person.name || '未命名'}${marks[index] || `(${index + 1})`}` : (person.name || '未命名'));
+    });
+  }
+  return labels;
+}
+
+function pairKey(a, b) {
+  return [String(a), String(b)].sort().join('\u0000');
+}
+
+function assignCurves(edges) {
+  const pairs = new Map();
+  for (const edge of edges) {
+    if (edge.kind === 'ta') continue;
+    const key = pairKey(edge.from, edge.to);
+    if (!pairs.has(key)) pairs.set(key, []);
+    pairs.get(key).push(edge);
+  }
+  for (const pair of pairs.values()) {
+    const directions = new Map();
+    for (const edge of pair) {
+      const key = `${edge.from}\u0000${edge.to}`;
+      if (!directions.has(key)) directions.set(key, []);
+      directions.get(key).push(edge);
+    }
+    const isBidirectional = directions.size > 1;
+    for (const [directionIndex, directionEdges] of [...directions.values()].entries()) {
+      const sign = isBidirectional ? (directionIndex === 0 ? 1 : -1) : 1;
+      directionEdges.forEach((edge, index) => {
+        edge.curve = sign * (isBidirectional ? 0.9 + index * 0.35 : (index - (directionEdges.length - 1) / 2) * 0.7);
+      });
+    }
+  }
+}
+
+/**
+ * Build the single source of truth used by the relation graph and relation list.
+ * relations[{toId,type}] means source person -> target person.
+ * person.relation means person -> TA.
+ */
+export function buildRelationModel(people = [], filterGroup = 'all') {
+  const allPeople = Array.isArray(people) ? people.filter((person) => person && person.id) : [];
+  const labels = disambiguatedLabels(allPeople);
+  const visiblePeople = filterGroup === 'all'
+    ? allPeople
+    : allPeople.filter((person) => person.group === filterGroup);
+  const visibleIds = new Set(visiblePeople.map((person) => person.id));
+  const byId = new Map(allPeople.map((person) => [person.id, person]));
+  const nodes = [{ id: 'TA', label: 'TA', group: 'TA', fixed: true, center: true }];
+  const edges = [];
+
+  for (const person of visiblePeople) {
+    nodes.push({ id: person.id, label: labels.get(person.id), group: person.group || '其他' });
+    const relation = typeof person.relation === 'string' ? person.relation.trim() : '';
+    if (relation) {
+      edges.push({
+        id: `ta:${person.id}`,
+        from: person.id,
+        to: 'TA',
+        label: relation,
+        note: '',
+        kind: 'ta',
+        sourceLabel: labels.get(person.id),
+        targetLabel: 'TA'
+      });
+    }
+  }
+
+  for (const person of visiblePeople) {
+    const relations = Array.isArray(person.relations) ? person.relations : [];
+    relations.forEach((relation, index) => {
+      const target = byId.get(relation && relation.toId);
+      // 分组筛选时只展示两个端点都在当前分组内的关系。
+      if (!target || !visibleIds.has(target.id)) return;
+      edges.push({
+        id: `relation:${person.id}:${index}:${target.id}`,
+        from: person.id,
+        to: target.id,
+        label: typeof relation.type === 'string' ? relation.type : '',
+        note: typeof relation.note === 'string' ? relation.note : '',
+        kind: 'person',
+        sourceLabel: labels.get(person.id),
+        targetLabel: labels.get(target.id)
+      });
+    });
+  }
+  assignCurves(edges);
+  return {
+    nodes,
+    edges,
+    filterGroup,
+    filterHint: filterGroup === 'all' ? '' : `当前仅显示“${filterGroup}”组内关系`
+  };
+}
+
+export function relationDetail(edge) {
+  if (!edge) return '';
+  const type = edge.label || '未填写关系';
+  return `${edge.sourceLabel} → ${edge.targetLabel}：${type}`;
+}
+
+export { GROUPS };
