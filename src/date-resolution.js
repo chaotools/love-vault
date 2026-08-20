@@ -14,6 +14,20 @@ function formatDate({ year, month, day }) {
   return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+function shanghaiDate(parts, hour = 0) {
+  const { year, month, day } = parts;
+  return new Date(Date.UTC(year, month - 1, day, hour - 8));
+}
+
+function shanghaiStartOfDay(date = new Date()) {
+  return shanghaiDate(shanghaiParts(date));
+}
+
+function shanghaiMonthKey(date = new Date()) {
+  const { year, month } = shanghaiParts(date);
+  return `${year}-${String(month).padStart(2, '0')}`;
+}
+
 function isValidDate(year, month, day) {
   const value = new Date(Date.UTC(year, month - 1, day));
   return value.getUTCFullYear() === year && value.getUTCMonth() === month - 1 && value.getUTCDate() === day;
@@ -85,4 +99,4 @@ function resolveEventDate({ dateText, userText, now = new Date() } = {}) {
   return { ok: true, date: formatDate(shanghaiParts(now)), source: 'server_default', dateText: '' };
 }
 
-module.exports = { TIME_ZONE, shanghaiParts, formatDate, resolveDateText, resolveEventDate };
+module.exports = { TIME_ZONE, shanghaiParts, shanghaiDate, shanghaiStartOfDay, shanghaiMonthKey, formatDate, resolveDateText, resolveEventDate };

@@ -115,3 +115,13 @@ test('普通农历生日不受闰月逻辑影响', () => {
   assert.ok(hit);
   assert.equal(hit.sub, '农历生日');
 });
+
+test('北京时间凌晨按上海日期提醒，不受 UTC 容器影响', () => {
+  const now = new Date('2026-08-19T16:30:00.000Z'); // 上海时间 2026-08-20 00:30
+  const result = computeReminders({
+    config: { anniversary: '', periodEnabled: false, memorialDays: [{ name: '今天', date: '08-20' }] },
+    profile: {}, people: []
+  }, { now });
+  assert.equal(result.today.date, '2026-08-20');
+  assert.equal(result.items.find((item) => item.id === 'md-今天').inDays, 0);
+});

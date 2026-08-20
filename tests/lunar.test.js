@@ -23,12 +23,10 @@ test('农历中文名：2026-08-19 是七月初七（七夕）', () => {
 });
 
 test('公历月日下一次：跨年正确', () => {
-  const d = lunar.nextSolarMonthDay(1, 1, new Date(2026, 2, 1));
-  assert.equal(d.getFullYear(), 2027);
-  assert.equal(d.getMonth(), 0);
-  assert.equal(d.getDate(), 1);
+  const d = lunar.nextSolarMonthDay(1, 1, new Date('2026-03-01T12:00:00+08:00'));
+  assert.equal(lunar.toDateStr(d), '2027-01-01');
   // 当天也算"接下来"
-  const today = new Date(2026, 6, 15);
+  const today = new Date('2026-07-15T00:00:00+08:00');
   const same = lunar.nextSolarMonthDay(7, 15, today);
   assert.equal(same.getTime(), today.getTime());
 });

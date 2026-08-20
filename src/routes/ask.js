@@ -2,6 +2,7 @@
 const express = require('express');
 const ai = require('../ai');
 const { resolveEventDate } = require('../date-resolution');
+const { rateLimit } = require('../rate-limit');
 
 const PREF_CATEGORIES = ['吃', '喝', '穿', '用', '玩', '其他'];
 const EVENT_TYPES = ['里程碑', '约会', '旅行', '争吵与和解', '承诺', '其他'];
@@ -253,7 +254,7 @@ function askRouter(configStore, getData) {
     });
   });
 
-  r.post('/', async (req, res) => {
+  r.post('/', rateLimit({ windowMs: 10 * 60_000, max: 12, name: 'AI 问答' }), async (req, res) => {
     const written = [];
     try {
       const vault = resolveVault(req);
@@ -267,6 +268,7 @@ function askRouter(configStore, getData) {
         .slice(-20)
         .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
       if (!clean.length) return res.status(400).json({ error: '消息内容为空' });
+      if (!clean.some((message) => message.role === 'user')) return res.status(400).json({ error: '至少需要一条用户消息' });
 
       const requestToolCalls = new Set();
       const latestUser = [...clean].reverse().find((message) => message.role === 'user');

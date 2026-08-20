@@ -8,6 +8,7 @@ class JsonStore {
     this.file = file;
     this.defaultValue = defaultValue;
     this.data = defaultValue;
+    this.writeChain = Promise.resolve();
   }
 
   async load() {
@@ -22,13 +23,26 @@ class JsonStore {
   }
 
   async save() {
-    const tmp = this.file + '.tmp';
-    const bak = this.file + '.bak';
-    await fsp.mkdir(path.dirname(this.file), { recursive: true });
-    await fsp.writeFile(tmp, JSON.stringify(this.data, null, 2), 'utf8');
-    // 保留上一版：误删/误改时可回滚；首次写入没有旧文件，忽略失败
-    await fsp.copyFile(this.file, bak).catch(() => {});
-    await fsp.rename(tmp, this.file);
+    // 同一用户可能同时从网页、小程序或 AI 写入。固定 .tmp 会让并发 rename
+    // 相互抢占，造成请求失败；每次保存先捕获快照，再按 store 串行落盘。
+    const snapshot = JSON.stringify(this.data, null, 2);
+    const write = async () => {
+      const tmp = `${this.file}.${process.pid}.${crypto.randomUUID()}.tmp`;
+      const bak = this.file + '.bak';
+      await fsp.mkdir(path.dirname(this.file), { recursive: true });
+      try {
+        await fsp.writeFile(tmp, snapshot, 'utf8');
+        // 保留上一版：误删/误改时可回滚；首次写入没有旧文件，忽略失败
+        await fsp.copyFile(this.file, bak).catch(() => {});
+        await fsp.rename(tmp, this.file);
+      } finally {
+        await fsp.unlink(tmp).catch(() => {});
+      }
+    };
+    const result = this.writeChain.then(write, write);
+    // 失败不能阻塞之后的保存请求。
+    this.writeChain = result.catch(() => {});
+    return result;
   }
 }
 

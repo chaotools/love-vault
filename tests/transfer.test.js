@@ -148,3 +148,20 @@ test('导入拒绝伪装在媒体目录中的 HTML 文件', async () => {
     await fsp.rm(dst.root, { recursive: true, force: true });
   }
 });
+
+test('导入拒绝错误的集合 JSON 结构，避免损坏当前保险库', async () => {
+  const dst = await makeVault();
+  try {
+    const buf = await zipBuffer({ 'config.json': '{}', 'preferences.json': '{"not":"an array"}' });
+    await withApp(appFor(dst.vault), async (origin) => {
+      const fd = new FormData();
+      fd.append('file', new Blob([buf], { type: 'application/zip' }), 'bad-shape.zip');
+      const resp = await fetch(origin + '/import', { method: 'POST', body: fd });
+      assert.equal(resp.status, 400);
+      assert.match((await resp.json()).error, /preferences\.json/);
+    });
+    assert.deepEqual(dst.vault.preferences.list(), []);
+  } finally {
+    await fsp.rm(dst.root, { recursive: true, force: true });
+  }
+});
