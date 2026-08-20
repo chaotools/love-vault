@@ -21,17 +21,77 @@ const preferencesRouter = (c) => collectionRouter(c, (b) => ({
 
 // ---------- 人名关系 ----------
 const PEOPLE_GROUP = ['家人', '朋友', '同事', '其他'];
-const peopleRouter = (c) => collectionRouter(c, (b) => ({
-  name: str(b.name),
-  relation: str(b.relation),
-  group: inEnum(b.group, PEOPLE_GROUP),
-  birthday: str(b.birthday),           // 形如 03-14 或 1998-03-14
-  lunar: bool(b.lunar),                // 生日按农历过
-  leap: bool(b.leap),                  // 闰月生日（如闰二月初一生日）
-  howMet: str(b.howMet),               // 相识故事
-  notes: str(b.notes),
-  source: str(b.source)                // 来源（如"AI 对话"）
-}));
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+// 人物间连接 sanitize：relations: [{ toId, type, note }]
+// 校验：toId 是合法 uuid、type 非空、toId 不能是自己、同对不重复
+function relationsSanitize(raw, selfId) {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) throw new Error('relations 必须是数组');
+  const out = [];
+  const seen = new Set();
+  for (const r of raw) {
+    if (!r || typeof r !== 'object') continue;
+    const toId = typeof r.toId === 'string' ? r.toId.trim() : '';
+    const type = typeof r.type === 'string' ? r.type.trim().slice(0, 50) : '';
+    const note = typeof r.note === 'string' ? r.note.trim().slice(0, 200) : '';
+    if (!UUID_RE.test(toId)) continue;                    // 非法 toId 丢弃
+    if (selfId && toId === selfId) continue;              // 不能连自己
+    if (!type) continue;                                  // type 必填
+    const key = toId + '\u0000' + type;
+    if (seen.has(key)) continue;                          // 同对同类型去重
+    seen.add(key);
+    out.push({ toId, type, note });
+  }
+  return out;
+}
+
+// 校验 relations 引用的 toId 都存在（防悬空引用）
+function assertRelationsExist(list, relations) {
+  if (!Array.isArray(relations) || !relations.length) return;
+  const ids = new Set(list.map((p) => p.id));
+  const missing = relations.filter((r) => !ids.has(r.toId));
+  if (missing.length) throw new Error('关联的人物不存在（可能已被删除）');
+}
+
+const peopleRouter = (c) => {
+  const resolve = (req) => typeof c === 'function' ? c(req) : c;
+  const inner = collectionRouter(c, (b, isPatch, selfId) => ({
+    name: str(b.name),
+    relation: str(b.relation),
+    group: inEnum(b.group, PEOPLE_GROUP),
+    birthday: str(b.birthday),           // 形如 03-14 或 1998-03-14
+    lunar: bool(b.lunar),                // 生日按农历过
+    leap: bool(b.leap),                  // 闰月生日（如闰二月初一生日）
+    howMet: str(b.howMet),               // 相识故事
+    notes: str(b.notes),
+    source: str(b.source),               // 来源（如"AI 对话"）
+    relations: relationsSanitize(b.relations, selfId) // 人物间连接（selfId 用于防自引用）
+  }));
+  const router = express.Router();
+  // 包一层：写入后校验悬空引用（POST 无 selfId；PATCH 有）
+  router.post('/', async (req, res, next) => {
+    try {
+      const b = req.body || {};
+      const relations = relationsSanitize(b.relations, null);
+      assertRelationsExist(resolve(req).list(), relations);
+      next();
+    } catch (e) { res.status(400).json({ error: e.message }); }
+  });
+  router.patch('/:id', async (req, res, next) => {
+    try {
+      const list = resolve(req).list();
+      const self = list.find((p) => p.id === req.params.id);
+      if (!self) return next();
+      const relations = relationsSanitize(req.body.relations !== undefined ? req.body.relations : self.relations, self.id);
+      // 校验时排除自己（允许引用其他人）
+      assertRelationsExist(list.filter((p) => p.id !== self.id), relations);
+      next();
+    } catch (e) { res.status(400).json({ error: e.message }); }
+  });
+  router.use(inner);
+  return router;
+};
 
 // ---------- 相册（照片/视频分组） ----------
 const albumsRouter = (c) => collectionRouter(c, (b) => ({
