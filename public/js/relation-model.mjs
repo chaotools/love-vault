@@ -126,4 +126,12 @@ export function relationDetail(edge) {
   return `${edge.sourceLabel} ${symbol} ${edge.targetLabel}：${type}`;
 }
 
+// 卡片和编辑页都需要看到“自己发出”的关系，以及“对方发出但标为双向”的关系。
+// 返回图中同一条边，不复制数据，也不额外落盘。
+export function personRelationEdges(model, personId) {
+  if (!model || !personId) return [];
+  return (model.edges || []).filter((edge) => edge.kind === 'person'
+    && (edge.from === personId || (edge.bidirectional === true && edge.to === personId)));
+}
+
 export { GROUPS };

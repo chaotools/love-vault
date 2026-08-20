@@ -635,6 +635,7 @@ body::before {
 .rel-edit-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--bg); border-radius: var(--radius-sm); }
 .rel-edit-row .rel-target { font-size: 13px; font-weight: 600; min-width: 72px; color: var(--ink); }
 .rel-edit-row > input[type="text"] { flex: 1; font-size: 13px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; outline: none; background: var(--card); }
+.rel-incoming { padding: 7px 10px; border: 1px dashed var(--border); border-radius: 8px; color: var(--muted); font-size: 12px; }
 .rel-bidirectional { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; color: var(--muted); font-size: 12px; white-space: nowrap; cursor: pointer; }
 .rel-bidirectional input[type="checkbox"] { flex: 0 0 auto; width: 15px; height: 15px; margin: 0; }
 .rel-add-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }

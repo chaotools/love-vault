@@ -125,6 +125,25 @@ test('relations：双向标记可保存，非法字符串标记不会被当成 t
   } finally { srv.close(); }
 });
 
+test('relations：双向关系不能由双方各保存一条镜像记录', async () => {
+  const srv = await startServer();
+  try {
+    const a = 'aaa11111-1111-4111-8111-111111111111';
+    const b = 'bbb22222-2222-4222-8222-222222222222';
+    const first = await fetch(`http://127.0.0.1:${srv.address().port}/api/people/${a}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ relations: [{ toId: b, type: '朋友', bidirectional: true }] })
+    });
+    assert.equal(first.status, 200);
+    const duplicate = await fetch(`http://127.0.0.1:${srv.address().port}/api/people/${b}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ relations: [{ toId: a, type: '朋友', bidirectional: true }] })
+    });
+    assert.equal(duplicate.status, 400);
+    assert.match((await duplicate.json()).error, /已由对方记录/);
+  } finally { srv.close(); }
+});
+
 test('删除人物时由服务端清理其他人物的关联', async () => {
   const srv = await startServer();
   try {

@@ -59,6 +59,19 @@ function assertRelationsExist(list, relations) {
   if (missing.length) throw new Error('关联的人物不存在（可能已被删除）');
 }
 
+// 双向关系只存一条：若对方已用相同关系类型指回当前人物，拒绝第二条镜像记录。
+function assertNoReverseBidirectionalRelation(list, selfId, relations) {
+  if (!selfId || !Array.isArray(relations)) return;
+  for (const relation of relations) {
+    if (!relation.bidirectional) continue;
+    const target = list.find((person) => person.id === relation.toId);
+    if ((target?.relations || []).some((other) =>
+      other.bidirectional === true && other.toId === selfId && other.type === relation.type)) {
+      throw new Error('该双向关系已由对方记录，无需重复添加');
+    }
+  }
+}
+
 const peopleRouter = (c) => {
   const resolve = (req) => typeof c === 'function' ? c(req) : c;
   const inner = collectionRouter(c, (b, isPatch, selfId) => ({
@@ -91,6 +104,7 @@ const peopleRouter = (c) => {
       const relations = relationsSanitize(req.body.relations !== undefined ? req.body.relations : self.relations, self.id);
       // 校验时排除自己（允许引用其他人）
       assertRelationsExist(list.filter((p) => p.id !== self.id), relations);
+      assertNoReverseBidirectionalRelation(list, self.id, relations);
       next();
     } catch (e) { res.status(400).json({ error: e.message }); }
   });

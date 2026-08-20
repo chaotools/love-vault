@@ -2,7 +2,7 @@
 // 支持卡片 / 关系图两种视图；关系图是自研力导向（零依赖）
 import { el, get, post, patch, del, toast, openModal, field, input, select, textarea, emptyState } from '../core.js';
 import { RelationGraph } from '../relation-graph.js';
-import { buildRelationModel, relationDetail, GROUPS as RELATION_GROUPS } from '../relation-model.mjs';
+import { buildRelationModel, personRelationEdges, relationDetail, GROUPS as RELATION_GROUPS } from '../relation-model.mjs';
 
 const GROUPS = RELATION_GROUPS;
 let people = [];
@@ -330,6 +330,7 @@ function buildGrid() {
   selectedRelationId = null;
   selectedPersonId = null;
   grid.innerHTML = '';
+  const cardRelationModel = buildRelationModel(people);
   const shown = people.filter((p) => filterGroup === 'all' || p.group === filterGroup)
     .slice()
     .sort((a, b) => GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group));
@@ -339,6 +340,7 @@ function buildGrid() {
     return;
   }
   for (const p of shown) {
+    const cardRelations = personRelationEdges(cardRelationModel, p.id);
     const soon = birthdaySoon(p.birthday);
     grid.append(el('div', { class: 'person-card', onclick: () => editPerson(p) },
       soon ? el('div', { class: 'person-bday-cake', text: '🎂' }) : null,
@@ -352,11 +354,11 @@ function buildGrid() {
       p.birthday ? el('div', { class: 'person-bday' + (soon ? ' soon' : ''), text: '🎂 ' + p.birthday + (p.lunar ? (p.leap ? '（农历·闰月）' : '（农历）') : '') }) : null,
       p.howMet ? el('div', { class: 'person-notes', text: '相识：' + p.howMet }) : null,
       p.notes ? el('div', { class: 'person-notes', text: p.notes }) : null,
-      (p.relations || []).length ? el('div', { class: 'person-rels' },
-        ...p.relations.map((r) => {
-          const t = people.find((x) => x.id === r.toId);
-          const direction = r.bidirectional === true ? '↔ ' : '→ ';
-          return el('span', { class: 'rel-chip', text: direction + (t ? disambiguatedLabel(t, 0) : '?') + '·' + r.type });
+      cardRelations.length ? el('div', { class: 'person-rels' },
+        ...cardRelations.map((edge) => {
+          const counterpart = edge.from === p.id ? edge.targetLabel : edge.sourceLabel;
+          const direction = edge.bidirectional === true ? '↔ ' : '→ ';
+          return el('span', { class: 'rel-chip', text: direction + (counterpart || '?') + '·' + edge.label });
         })) : null));
   }
 }
@@ -386,11 +388,18 @@ function editPerson(p) {
   // —— 关联其他人（人物间连接） ——
   // relations: [{ toId, type, note, bidirectional? }]，用 id 引用解决同名歧义
   const relations = (p ? (p.relations || []) : []).map((r) => ({ ...r }));
+  const incomingMutual = p
+    ? personRelationEdges(buildRelationModel(people), p.id)
+      .filter((edge) => edge.bidirectional === true && edge.to === p.id)
+    : [];
+  const hasReverseBidirectional = (relation) => p && relation.bidirectional === true
+    && (people.find((person) => person.id === relation.toId)?.relations || []).some((other) =>
+      other.bidirectional === true && other.toId === p.id && other.type === relation.type);
   const RELATION_SUGGESTIONS = ['爸爸', '妈妈', '哥哥', '姐姐', '弟弟', '妹妹', '老公', '老婆', '夫妻', '情侣', '同事', '同学', '朋友', '表弟', '表姐', '其他'];
   const relationBox = el('div', { class: 'rel-edit-box' });
   const renderRelations = () => {
     relationBox.innerHTML = '';
-    if (!relations.length) {
+    if (!relations.length && !incomingMutual.length) {
       relationBox.append(el('p', { style: 'font-size:13px;color:var(--muted)', text: '还没有关系。默认记录为“当前人物 → 目标人物”；夫妻、朋友等可勾选“双向”，同名人物按编号区分' }));
     }
     relations.forEach((r, i) => {
@@ -413,6 +422,9 @@ function editPerson(p) {
         el('button', { class: 'cf-del', text: '✕', onclick: () => { relations.splice(i, 1); renderRelations(); } }));
       relationBox.append(row);
     });
+    for (const edge of incomingMutual) {
+      relationBox.append(el('div', { class: 'rel-incoming', text: `↔ ${edge.sourceLabel} · ${edge.label}（由对方维护）` }));
+    }
   };
   renderRelations();
 
@@ -430,7 +442,9 @@ function editPerson(p) {
       if (!toId) { toast('先选要关联的人', 'err'); return; }
       if (!type) { toast('填一下关系，如：同事', 'err'); return; }
       if (relations.some((r) => r.toId === toId && r.type === type)) { toast('这个关系已经加过了', 'err'); return; }
-      relations.push({ toId, type, ...(relBidirectionalChk.checked ? { bidirectional: true } : {}) });
+      const next = { toId, type, ...(relBidirectionalChk.checked ? { bidirectional: true } : {}) };
+      if (hasReverseBidirectional(next)) { toast('该双向关系已由对方记录', 'err'); return; }
+      relations.push(next);
       relTarget.value = ''; relType.value = ''; relBidirectionalChk.checked = false;
       renderRelations();
     }
@@ -459,6 +473,10 @@ function editPerson(p) {
           howMet: howMet.value.trim(), notes: notes.value.trim(),
           relations: relations.filter((r) => r.toId && r.type)
         };
+        if (body.relations.some(hasReverseBidirectional)) {
+          toast('该双向关系已由对方记录，请编辑另一方', 'err');
+          return;
+        }
         if (p) {
           const updated = await patch('/api/people/' + p.id, body);
           const i = people.findIndex((x) => x.id === p.id);
