@@ -8,6 +8,7 @@ let people = [];
 let filterGroup = 'all';
 let viewMode = 'card'; // 'card' | 'graph'
 let graph = null;
+let graphStopTimer = null;
 let viewEl = null;
 
 // 同名区分：按名字分组，同名的人 label 加 ①②③
@@ -85,7 +86,16 @@ function build() {
 }
 
 function destroyGraph() {
+  if (graphStopTimer) {
+    clearTimeout(graphStopTimer);
+    graphStopTimer = null;
+  }
   if (graph) { graph.destroy(); graph = null; }
+}
+
+// 路由离开人名页时由 app.js 调用，释放关系图的动画和窗口事件监听。
+export function destroy() {
+  destroyGraph();
 }
 
 // 关系图：自研力导向
@@ -102,7 +112,7 @@ function renderGraph() {
   const nodes = [];
   const edges = [];
   // 中心"TA"虚拟节点
-  nodes.push({ id: 'TA', label: 'TA', group: 'TA', fixed: true, x: 0, y: 0 });
+  nodes.push({ id: 'TA', label: 'TA', group: 'TA', fixed: true, center: true });
   const shown = people.filter((p) => filterGroup === 'all' || p.group === filterGroup);
   for (const p of shown) {
     nodes.push({ id: p.id, label: disambiguatedLabel(p, 0), group: p.group || '其他' });
@@ -130,7 +140,10 @@ function renderGraph() {
   });
   graph.setData(nodes, edges);
   // 初始自动收敛后再允许拖拽（让布局先稳定）
-  setTimeout(() => graph.stop(), 2500);
+  const currentGraph = graph;
+  graphStopTimer = setTimeout(() => {
+    if (graph === currentGraph) currentGraph.stop();
+  }, 2500);
 }
 
 function buildGrid() {
@@ -244,13 +257,6 @@ function editPerson(p) {
         if (!confirm(`删除「${p.name}」？`)) return;
         await del('/api/people/' + p.id);
         people = people.filter((x) => x.id !== p.id);
-        // 清掉别人对 TA 的引用（防悬空）
-        for (const other of people) {
-          if ((other.relations || []).some((r) => r.toId === p.id)) {
-            await patch('/api/people/' + other.id, { relations: (other.relations || []).filter((r) => r.toId !== p.id) });
-            other.relations = (other.relations || []).filter((r) => r.toId !== p.id);
-          }
-        }
         md.close(); build(); toast('已删除');
       } }) } : null,
       { el: el('button', { class: 'ghost-btn', text: '取消', onclick: () => md.close() }) },

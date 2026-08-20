@@ -35,6 +35,9 @@ export class RelationGraph {
     this.offsetY = 0;
     this.panning = false;
     this.panStart = null;
+    this.width = 0;
+    this.height = 0;
+    this.destroyed = false;
 
     // 物理参数（借鉴 vis-network 的 spring/repulsion/damping 思路）
     this.springLength = 110;
@@ -50,18 +53,34 @@ export class RelationGraph {
 
   _bindEvents() {
     const c = this.canvas;
-    c.addEventListener('mousedown', (e) => this._onMouseDown(e));
-    window.addEventListener('mousemove', (e) => this._onMouseMove(e));
-    window.addEventListener('mouseup', (e) => this._onMouseUp(e));
-    c.addEventListener('wheel', (e) => this._onWheel(e), { passive: false });
-    c.addEventListener('dblclick', (e) => this._onDblClick(e));
+    this.handlers = {
+      mousedown: (e) => this._onMouseDown(e),
+      mousemove: (e) => this._onMouseMove(e),
+      mouseup: () => this._onMouseUp(),
+      wheel: (e) => this._onWheel(e),
+      dblclick: (e) => this._onDblClick(e),
+      resize: () => {
+        if (this.destroyed) return;
+        this._resize();
+        this._centerNodes();
+        this._draw();
+      }
+    };
+    c.addEventListener('mousedown', this.handlers.mousedown);
+    window.addEventListener('mousemove', this.handlers.mousemove);
+    window.addEventListener('mouseup', this.handlers.mouseup);
+    c.addEventListener('wheel', this.handlers.wheel, { passive: false });
+    c.addEventListener('dblclick', this.handlers.dblclick);
+    window.addEventListener('resize', this.handlers.resize);
   }
 
   setData(nodes, edges) {
     this.nodes = nodes;
     this.edges = edges;
+    this._resize();
+    this._centerNodes();
     // 给没有位置的节点随机初始位置（以中心为圆心散开）
-    const cx = this.canvas.width / 2, cy = this.canvas.height / 2;
+    const cx = this.width / 2, cy = this.height / 2;
     this.nodes.forEach((n, i) => {
       if (n.x === undefined || n.y === undefined) {
         const angle = (i / Math.max(1, this.nodes.length)) * Math.PI * 2;
@@ -72,17 +91,27 @@ export class RelationGraph {
       n.vx = n.vx || 0;
       n.vy = n.vy || 0;
     });
-    this._resize();
     this.start();
   }
 
   _resize() {
-    // 适配容器尺寸（保持逻辑坐标与物理坐标 1:1，缩放靠 scale）
+    // 物理像素只用于画布清晰度；物理模型、鼠标命中和绘制均使用 CSS 逻辑像素。
     const rect = this.canvas.parentElement.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    this.canvas.width = rect.width * dpr;
-    this.canvas.height = rect.height * dpr;
+    this.width = Math.max(1, rect.width);
+    this.height = Math.max(1, rect.height);
+    this.canvas.width = Math.round(this.width * dpr);
+    this.canvas.height = Math.round(this.height * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  _centerNodes() {
+    for (const node of this.nodes) {
+      if (node.center) {
+        node.x = this.width / 2;
+        node.y = this.height / 2;
+      }
+    }
   }
 
   _toCanvasPos(e) {
@@ -132,8 +161,8 @@ export class RelationGraph {
       }
     }
     // 中心引力
-    const cx = this.canvas.width / 2 / this.scale - this.offsetX;
-    const cy = this.canvas.height / 2 / this.scale - this.offsetY;
+    const cx = this.width / 2 / this.scale - this.offsetX;
+    const cy = this.height / 2 / this.scale - this.offsetY;
     for (const n of nodes) {
       if (n.fixed) continue;
       n.vx += (cx - n.x) * this.centralGravity;
@@ -171,9 +200,7 @@ export class RelationGraph {
   /* ---------- 渲染 ---------- */
   _draw() {
     const ctx = this.ctx;
-    const w = this.canvas.width / (window.devicePixelRatio || 1);
-    const h = this.canvas.height / (window.devicePixelRatio || 1);
-    ctx.clearRect(0, 0, w, h);
+    ctx.clearRect(0, 0, this.width, this.height);
 
     ctx.save();
     ctx.scale(this.scale, this.scale);
@@ -294,5 +321,13 @@ export class RelationGraph {
 
   destroy() {
     this.stop();
+    this.destroyed = true;
+    const c = this.canvas;
+    c.removeEventListener('mousedown', this.handlers.mousedown);
+    window.removeEventListener('mousemove', this.handlers.mousemove);
+    window.removeEventListener('mouseup', this.handlers.mouseup);
+    c.removeEventListener('wheel', this.handlers.wheel);
+    c.removeEventListener('dblclick', this.handlers.dblclick);
+    window.removeEventListener('resize', this.handlers.resize);
   }
 }

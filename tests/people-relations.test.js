@@ -12,6 +12,7 @@ function makeVault() {
     { id: 'ccc33333-3333-4333-8333-333333333333', name: '王叔叔②', relation: '同事', group: '同事', relations: [] }
   ];
   return {
+    items,
     list: () => items,
     get: (id) => items.find((x) => x.id === id) || null,
     add: async (fields) => { const item = { ...fields, id: 'new-' + Date.now() }; items.push(item); return item; },
@@ -22,10 +23,11 @@ function makeVault() {
 
 function startServer() {
   const app = express();
+  const vault = makeVault();
   app.use(express.json());
-  app.use('/api/people', content.peopleRouter((req) => makeVault()));
+  app.use('/api/people', content.peopleRouter(() => vault));
   return new Promise((resolve) => {
-    const srv = app.listen(0, () => resolve(srv));
+    const srv = app.listen(0, () => resolve(Object.assign(srv, { vault })));
   });
 }
 
@@ -97,5 +99,17 @@ test('relations：不能关联自己（PATCH 自引用被清洗）', async () =>
     assert.equal(r.status, 200);
     const body = await r.json();
     assert.equal(body.relations.length, 0); // 自引用被丢弃
+  } finally { srv.close(); }
+});
+
+test('删除人物时由服务端清理其他人物的关联', async () => {
+  const srv = await startServer();
+  try {
+    const targetId = 'aaa11111-1111-4111-8111-111111111111';
+    srv.vault.items[1].relations = [{ toId: targetId, type: '邻居' }];
+    const r = await fetch(`http://127.0.0.1:${srv.address().port}/api/people/${targetId}`, { method: 'DELETE' });
+    assert.equal(r.status, 200);
+    assert.equal(srv.vault.items.some((person) => person.id === targetId), false);
+    assert.deepEqual(srv.vault.items.find((person) => person.id === 'bbb22222-2222-4222-8222-222222222222').relations, []);
   } finally { srv.close(); }
 });

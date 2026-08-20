@@ -89,6 +89,28 @@ const peopleRouter = (c) => {
       next();
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
+  // 删除必须同时清理所有指向该人物的连接。不能依赖前端逐条 PATCH，
+  // 否则中断或其他客户端调用删除接口时会留下悬空引用。
+  router.delete('/:id', async (req, res, next) => {
+    try {
+      const collection = resolve(req);
+      const person = collection.get(req.params.id);
+      if (!person) return next();
+      const dependents = collection.list().filter((other) =>
+        other.id !== person.id && (other.relations || []).some((relation) => relation.toId === person.id));
+      // 先清理引用再删除：若写入失败，人物仍保留，数据不会出现悬空引用。
+      for (const other of dependents) {
+        await collection.update(other.id, {
+          relations: other.relations.filter((relation) => relation.toId !== person.id)
+        });
+      }
+      const ok = await collection.remove(person.id);
+      if (ok) return res.json({ ok: true });
+      return res.status(404).json({ error: 'not found' });
+    } catch (e) {
+      return res.status(500).json({ error: '删除人物失败，未完成关联清理' });
+    }
+  });
   router.use(inner);
   return router;
 };

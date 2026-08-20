@@ -14,6 +14,7 @@ import * as askView from './views/ask.js';
 const VIEWS = {
   timeline, profile, preferences, people: peopleView, events: eventsView, wishes: wishesView, stats: statsView, calendar: calendarView, ask: askView
 };
+let activeView = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -271,6 +272,8 @@ function router() {
   const params = {};
   if (query) for (const [k, v] of new URLSearchParams(query)) params[k] = v;
   const view = VIEWS[routeName] || timeline;
+  if (activeView && activeView !== view && typeof activeView.destroy === 'function') activeView.destroy();
+  activeView = view;
   $('hero').hidden = view !== timeline;
   document.querySelectorAll('#nav a').forEach((a) => a.classList.toggle('active', a.dataset.route === (VIEWS[routeName] ? routeName : 'timeline')));
   window.scrollTo(0, 0);
