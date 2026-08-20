@@ -52,7 +52,7 @@ function assignCurves(edges) {
 /**
  * Build the single source of truth used by the relation graph and relation list.
  * relations[{toId,type}] means source person -> target person.
- * person.relation means person -> TA.
+ * person.relation means TA -> person: the relationship of TA to that person.
  */
 export function buildRelationModel(people = [], filterGroup = 'all') {
   const allPeople = Array.isArray(people) ? people.filter((person) => person && person.id) : [];
@@ -71,13 +71,14 @@ export function buildRelationModel(people = [], filterGroup = 'all') {
     if (relation) {
       edges.push({
         id: `ta:${person.id}`,
-        from: person.id,
-        to: 'TA',
+        from: 'TA',
+        to: person.id,
         label: relation,
         note: '',
         kind: 'ta',
-        sourceLabel: labels.get(person.id),
-        targetLabel: 'TA'
+        directed: true,
+        sourceLabel: 'TA',
+        targetLabel: labels.get(person.id)
       });
     }
   }
@@ -93,8 +94,9 @@ export function buildRelationModel(people = [], filterGroup = 'all') {
         from: person.id,
         to: target.id,
         label: typeof relation.type === 'string' ? relation.type : '',
-        note: typeof relation.note === 'string' ? relation.note : '',
+        note: typeof relation.note === 'string' && relation.note !== 'null' ? relation.note : '',
         kind: 'person',
+        directed: true,
         sourceLabel: labels.get(person.id),
         targetLabel: labels.get(target.id)
       });
@@ -112,7 +114,8 @@ export function buildRelationModel(people = [], filterGroup = 'all') {
 export function relationDetail(edge) {
   if (!edge) return '';
   const type = edge.label || '未填写关系';
-  return `${edge.sourceLabel} → ${edge.targetLabel}：${type}`;
+  const symbol = edge.directed === false ? '↔' : '→';
+  return `${edge.sourceLabel} ${symbol} ${edge.targetLabel}：${type}`;
 }
 
 export { GROUPS };

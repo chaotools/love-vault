@@ -69,12 +69,12 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'addPerson',
-      description: '记录TA身边的一个新人物（家人/朋友/同事）；同名已存在时会被拒绝重复写入。relation 表示当前人物对 TA 的关系，relations 表示当前人物指向其他人物的关系',
+      description: '记录TA身边的一个新人物（家人/朋友/同事）；同名已存在时会被拒绝重复写入。relation 表示 TA 指向当前人物的关系，relations 表示当前人物指向其他人物的关系',
       parameters: {
         type: 'object',
         properties: {
           name: { type: 'string', description: '称呼' },
-          relation: { type: 'string', description: '与TA的关系，如：妈妈' },
+          relation: { type: 'string', description: 'TA 对当前人物的关系，如：爸爸 / 妈妈' },
           group: { type: 'string', enum: PEOPLE_GROUPS, description: '分组' },
           howMet: { type: 'string', description: '怎么认识/交集' },
           notes: { type: 'string', description: '备注' },

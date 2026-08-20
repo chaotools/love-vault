@@ -13,7 +13,7 @@ const samplePeople = () => [
   { id: 'ccc33333-3333-4333-8333-333333333333', name: '王叔叔', relation: '', group: '同事', relations: [] }
 ];
 
-test('关系投影保留方向，并把人物关系指向 TA', () => {
+test('关系投影以 TA 为中心，并保留人物关系方向', () => {
   return modelPromise.then(({ buildRelationModel, relationDetail }) => {
   const model = buildRelationModel(samplePeople());
   const personEdges = model.edges.filter((edge) => edge.kind === 'person');
@@ -25,9 +25,12 @@ test('关系投影保留方向，并把人物关系指向 TA', () => {
   assert.notEqual(personEdges[0].curve, 0);
   assert.equal(personEdges[0].curve, -personEdges[1].curve);
   assert.equal(personEdges[0].note, '同一家公司');
-  const taEdge = model.edges.find((edge) => edge.from === 'aaa11111-1111-4111-8111-111111111111' && edge.to === 'TA');
+  const taEdge = model.edges.find((edge) => edge.kind === 'ta' && edge.targetLabel === '李阿姨');
   assert.equal(taEdge.label, '妈妈');
-  assert.equal(relationDetail(taEdge), '李阿姨 → TA：妈妈');
+  assert.equal(taEdge.from, 'TA');
+  assert.equal(taEdge.to, 'aaa11111-1111-4111-8111-111111111111');
+  assert.equal(taEdge.directed, true);
+  assert.equal(relationDetail(taEdge), 'TA → 李阿姨：妈妈');
   });
 });
 

@@ -138,8 +138,9 @@ data/                ★ 全部记忆（多用户时为 users/<内部 UUID>/）
 - `profile.json`：basics（身高/体重/尺码…）+ health + period + 自定义字段 + story
 - `preferences.json` / `people.json` / `events.json` / `wishes.json` / `gifts.json` / `memories.json`
 
-人物关系方向约定：`people.relation` 表示“当前人物 → TA”的关系；`people.relations` 中的
-`{ toId, type, note }` 表示“当前人物 → 目标人物”的关系。关系图箭头指向目标人物，关系清单
-会用“来源 → 关系 → 目标”完整显示方向；程序不会根据“妈妈”等关系自动推导反向关系。
+人物关系方向约定：旧字段 `people.relation` 表示“TA → 当前人物”的关系，关系图以 TA 为中心、
+箭头指向该人物；例如 `TA → 爸爸：爸爸`。`people.relations` 中的 `{ toId, type, note }`
+表示“当前人物 → 目标人物”的有向关系。关系图和关系清单使用同一份投影，程序不会根据“妈妈”
+等关系自动推导反向关系。
 
 均为带 `id/createdAt/updatedAt` 的 JSON 数组（profile 为对象），人可直接阅读，方便导出和二次利用。
