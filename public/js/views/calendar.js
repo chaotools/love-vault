@@ -1,5 +1,5 @@
 // 爱情日历：月视图，聚合纪念日/生日/大事记/照片/生理期
-import { el, get, openModal, emptyState, fmtDate } from '../core.js';
+import { el, get, openModal, emptyState, fmtDate, subjectLabel } from '../core.js';
 
 let viewEl = null;
 let year = new Date().getFullYear();
@@ -30,7 +30,7 @@ function build(data) {
   const pageHead = el('div', { class: 'page-head' },
     el('div', null,
       el('div', { class: 'page-title', text: '📅 爱情日历' }),
-      el('div', { class: 'page-desc', text: '一眼看全这个月与 TA 相关的日子' })),
+      el('div', { class: 'page-desc', text: `一眼看全这个月与 ${subjectLabel()} 相关的日子` })),
     el('div', { class: 'cal-nav' },
       el('button', { class: 'ghost-btn', text: '‹', onclick: () => { month--; if (month < 1) { month = 12; year--; } loadAndBuild(); } }),
       el('span', { class: 'cal-month', text: monthLabel }),

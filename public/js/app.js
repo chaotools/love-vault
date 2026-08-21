@@ -1,5 +1,5 @@
 // 应用主控：启动、路由、全局搜索、随手记、设置、登录、首屏
-import { el, get, post, toast, store, openModal, field, input, select, fmtDate, initLightbox, pad } from './core.js';
+import { el, get, post, toast, store, openModal, field, input, select, fmtDate, initLightbox, pad, subjectLabel, quickWishSource } from './core.js';
 import { lunarDateText, nextOccurrence, daysUntil } from './lunar.js';
 import * as timeline from './views/timeline.js';
 import * as profile from './views/profile.js';
@@ -15,6 +15,8 @@ const VIEWS = {
   timeline, profile, preferences, people: peopleView, events: eventsView, wishes: wishesView, stats: statsView, calendar: calendarView, ask: askView
 };
 let activeView = null;
+let routerReady = false;
+let lastSubjectLabel = 'TA';
 
 const $ = (id) => document.getElementById(id);
 
@@ -57,11 +59,16 @@ async function boot() {
 /* ---------- 配置应用到 UI ---------- */
 function applyConfig(config) {
   if (!config) return;
+  const nextSubjectLabel = subjectLabel();
+  const subjectChanged = routerReady && lastSubjectLabel !== nextSubjectLabel;
+  lastSubjectLabel = nextSubjectLabel;
   const title = config.title || '爱人记忆库';
   $('toolbarTitle').textContent = title;
   $('heroTitle').textContent = title;
   document.title = title;
   $('heroNames').textContent = config.names || '';
+  const profileNav = document.querySelector('[data-route="profile"]');
+  if (profileNav) profileNav.textContent = nextSubjectLabel + '档案';
   $('daysBox').hidden = !config.anniversary;
   $('musicBtn').hidden = !config.music;
   renderDays();
@@ -69,6 +76,8 @@ function applyConfig(config) {
   renderBanners();
   const route = location.hash.replace('#/', '').split('?')[0] || 'timeline';
   if (route === 'timeline') $('hero').hidden = false;
+  // 设置窗口仍保持打开完成保存，下一帧再刷新当前视图即可使用新称呼。
+  if (subjectChanged) setTimeout(() => { if (routerReady) router(); }, 0);
 }
 
 function renderDays() {
@@ -126,7 +135,7 @@ async function renderBanners() {
       if (act.daysSinceLastRecord != null && act.daysSinceLastRecord >= 7) {
         box.append(el('div', { class: 'banner' },
           '📝',
-          el('span', null, `最近 ${act.daysSinceLastRecord} 天没给 TA 记新东西了`, el('b', { text: ' 别让回忆断更' }))));
+          el('span', null, `最近 ${act.daysSinceLastRecord} 天没给 ${subjectLabel()} 记新东西了`, el('b', { text: ' 别让回忆断更' }))));
       } else if (act.streak >= 3) {
         box.append(el('div', { class: 'banner' },
           '🔥',
@@ -264,6 +273,7 @@ store.on('config', (c) => {
 /* ---------- 路由 ---------- */
 function initRouter() {
   window.addEventListener('hashchange', router);
+  routerReady = true;
   router();
 }
 function router() {
@@ -348,10 +358,10 @@ function initQuickNote() {
   $('quickNoteBtn').addEventListener('click', () => {
     const kind = select([
       ['event', '大事记 · 刚发生的事'],
-      ['like', '偏好 · TA喜欢什么'],
-      ['dislike', '偏好 · TA不喜欢什么'],
-      ['wish', '愿望 · TA随口说想要的'],
-      ['person', '人名 · TA提到谁']
+      ['like', `偏好 · ${subjectLabel()}喜欢什么`],
+      ['dislike', `偏好 · ${subjectLabel()}不喜欢什么`],
+      ['wish', `愿望 · ${subjectLabel()}随口说想要的`],
+      ['person', `人名 · ${subjectLabel()}提到谁`]
     ], 'event', { id: 'qnKind' });
     const text = input({ id: 'qnText', type: 'text', placeholder: '一句话就好，比如：说想去一次海边露营' });
     const hint = el('div', { class: 'field-hint', text: '捕捉越快，记得越多。以后可以再去对应模块补充细节。' });
@@ -364,7 +374,7 @@ function initQuickNote() {
         if (k === 'event') await post('/api/events', { date: new Date().toISOString(), title: v, type: '其他' });
         else if (k === 'like') await post('/api/preferences', { polarity: '喜欢', category: '其他', title: v });
         else if (k === 'dislike') await post('/api/preferences', { polarity: '不喜欢', category: '其他', title: v });
-        else if (k === 'wish') await post('/api/wishes', { title: v, status: '想要', source: 'TA随口说的' });
+        else if (k === 'wish') await post('/api/wishes', { title: v, status: '想要', source: quickWishSource() });
         else if (k === 'person') await post('/api/people', { name: v, group: '其他' });
         toast('记下了 💕');
         m.close();
@@ -398,6 +408,7 @@ async function openSettings() {
 
   // —— 基本区 ——
   const sTitle = input({ type: 'text', value: cfg.title || '' });
+  const sSubjectName = input({ type: 'text', value: cfg.subjectName || '', maxLength: '30', placeholder: '例如：小鹿、宝宝、阿宁（留空显示 TA）' });
   const sNames = input({ type: 'text', value: cfg.names || '', placeholder: '例如：宝宝 & 贝贝' });
   const sAnn = input({ type: 'date', value: cfg.anniversary || '' });
   const sMusic = input({ type: 'text', value: cfg.music || '', placeholder: '例如 our-song.mp3（放进 data/music 目录）' });
@@ -509,7 +520,7 @@ async function openSettings() {
     content: el('div', null,
       el('div', { class: 'settings-section' },
         el('h4', { text: '基本' }),
-        field('标题', sTitle), field('两个人的名字', sNames), field('在一起的日子', sAnn),
+        field('标题', sTitle), field('记忆主角称呼', sSubjectName, '最多 30 个字符，留空使用 TA'), field('两个人的名字', sNames), field('在一起的日子', sAnn),
         field('背景音乐文件名', sMusic), field('生理期记录', sPeriod),
         field('纪念日', addDay), memorialRows
       ),
@@ -538,7 +549,7 @@ async function openSettings() {
           class: 'primary-btn', text: '保存', onclick: async () => {
             try {
               const saved = await post('/api/config', {
-                title: sTitle.value.trim(), names: sNames.value.trim(), anniversary: sAnn.value,
+                title: sTitle.value.trim(), subjectName: sSubjectName.value.trim().slice(0, 30), names: sNames.value.trim(), anniversary: sAnn.value,
                 music: sMusic.value.trim(), periodEnabled: sPeriod.value === 'true',
                 memorialDays: days.filter((d) => d.name && d.date),
                 ai: { provider: sProvider.value, baseUrl: sBaseUrl.value.trim(), apiKey: sApiKey.value.trim(), model: sModel.value.trim(), privacy: { health: sAiHealth.checked, period: sAiPeriod.checked } }

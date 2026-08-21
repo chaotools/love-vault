@@ -1,12 +1,12 @@
 // AI 问答：跟"最懂你们的大脑"聊天
-import { el, get, post, toast, store } from '../core.js';
+import { el, get, post, toast, store, subjectLabel } from '../core.js';
 
-const SUGGESTIONS = [
-  'TA对什么过敏？',
+const suggestionsFor = (subject) => [
+  `${subject}对什么过敏？`,
   '最近有什么生日或纪念日？',
-  '下次送TA什么礼物好？',
+  `下次送${subject}什么礼物好？`,
   '我们还欠彼此哪些承诺？',
-  'TA最近随口说过想要什么？',
+  `${subject}最近随口说过想要什么？`,
   '推荐一个这周末的约会'
 ];
 const HISTORY_KEY = 'vault_chat_history';
@@ -16,6 +16,7 @@ let sending = false;
 
 export async function render(container) {
   container.innerHTML = '';
+  const subject = subjectLabel();
   const ai = store.data.ai || await get('/api/ask/status').catch(() => null);
   if (!ai || !ai.configured) {
     container.append(el('div', { class: 'page' },
@@ -28,7 +29,7 @@ export async function render(container) {
   chat = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
 
   const list = el('div', { class: 'chat-list' });
-  const input = el('input', { type: 'text', placeholder: '问点什么… 比如：TA的鞋码是多少？' });
+  const input = el('input', { type: 'text', placeholder: `问点什么… 比如：${subject}的鞋码是多少？` });
   const sendBtn = el('button', { class: 'primary-btn', text: '发送' });
 
   const renderList = () => {
@@ -36,8 +37,8 @@ export async function render(container) {
     if (!chat.length) {
       list.append(el('div', { class: 'chat-suggest' },
         el('p', { style: 'font-size:13px;color:var(--muted);width:100%', text: '试试这些：' }),
-        ...SUGGESTIONS.map((s) => el('button', { text: s, onclick: () => { input.value = s; send(); } })),
-        el('p', { style: 'font-size:12px;color:var(--muted);width:100%;margin-top:6px', text: '💡 也可以直接告诉 TA 新信息，比如"TA说想要一台胶片相机""TA不喜欢吃香菜"——我会帮你记进对应模块' })));
+        ...suggestionsFor(subject).map((s) => el('button', { text: s, onclick: () => { input.value = s; send(); } })),
+        el('p', { style: 'font-size:12px;color:var(--muted);width:100%;margin-top:6px', text: `💡 也可以直接告诉 ${subject} 新信息，比如"${subject}说想要一台胶片相机""${subject}不喜欢吃香菜"——我会帮你记进对应模块` })));
     }
     for (const m of chat) {
       list.append(el('div', { class: 'chat-bubble ' + (m.role === 'user' ? 'user' : 'ai' + (m.error ? ' error' : '')), text: m.content }));

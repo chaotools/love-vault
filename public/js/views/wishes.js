@@ -1,5 +1,5 @@
 // 愿望 & 礼物 & 约会灵感：想要清单、礼物双向记录、随机抽卡
-import { el, get, post, patch, del, toast, openModal, field, input, select, textarea, fmtDate, emptyState, store } from '../core.js';
+import { el, get, post, patch, del, toast, openModal, field, input, select, textarea, fmtDate, emptyState, store, subjectLabel } from '../core.js';
 
 const STATUSES = ['想要', '计划', '已实现'];
 const PRIORITIES = ['高', '中', '低'];
@@ -53,7 +53,7 @@ function build() {
   page.append(el('div', { class: 'page-head' },
     el('div', null,
       el('div', { class: 'page-title', text: '🎁 愿望 & 礼物' }),
-      el('div', { class: 'page-desc', text: 'TA随口提过想要的，都记下来——送礼不重样' })),
+      el('div', { class: 'page-desc', text: `${subjectLabel()}随口提过想要的，都记下来——送礼不重样` })),
     el('button', { class: 'primary-btn', text: '＋ ' + (tab === 'gift' ? '记一件礼物' : '记一个愿望'), onclick: () => tab === 'gift' ? editGift(null) : editWish(null) })));
 
   const seg = el('div', { class: 'seg' },
@@ -100,7 +100,9 @@ function wishTab() {
   const renderGrid = () => {
     const shown = wishes.filter((w) => filterStatus === 'all' || w.status === filterStatus);
     if (!shown.length) {
-      grid.append(emptyState('💝', wishes.length ? '这个状态下还没有愿望' : 'TA 随口说想要什么的时候，<b>记下来</b>——下次送礼就是惊喜'));
+      grid.append(emptyState('💝', wishes.length
+        ? '这个状态下还没有愿望'
+        : el('span', null, `${subjectLabel()} 随口说想要什么的时候，`, el('b', { text: '记下来' }), '——下次送礼就是惊喜')));
       return;
     }
     for (const w of shown) {
@@ -138,10 +140,10 @@ async function cycleStatus(w) {
 }
 
 function editWish(w) {
-  const title = input({ type: 'text', value: w ? w.title : '', placeholder: 'TA想要什么，如：一台胶片相机' });
+  const title = input({ type: 'text', value: w ? w.title : '', placeholder: `${subjectLabel()}想要什么，如：一台胶片相机` });
   const status = select(STATUSES.map((s) => [s, s]), w ? w.status : (filterStatus !== 'all' ? filterStatus : '想要'));
   const priority = select(PRIORITIES.map((p) => [p, p === '高' ? '高（近期就想送）' : p]), w ? w.priority : '中');
-  const source = input({ type: 'text', value: w ? w.source : '', placeholder: 'TA随口说的 / 逛街时盯了三秒 / 生日提过' });
+  const source = input({ type: 'text', value: w ? w.source : '', placeholder: `${subjectLabel()}随口说的 / 逛街时盯了三秒 / 生日提过` });
   const note = textarea({ placeholder: '型号、颜色、尺寸、在哪买…（可空）' }, w ? w.note : '');
   const md = openModal({
     title: w ? '编辑愿望' : '记一个愿望',
@@ -201,10 +203,12 @@ function giftTab() {
 
 function editGift(g) {
   const title = input({ type: 'text', value: g ? g.title : '', placeholder: '礼物名' });
-  const direction = select(DIRECTIONS.map((d) => [d, d]), g ? g.direction : '送给TA');
+  const subject = subjectLabel();
+  const directionLabels = { '送给TA': `送给${subject}`, 'TA送我': `${subject}送我` };
+  const direction = select(DIRECTIONS.map((d) => [d, directionLabels[d]]), g ? g.direction : '送给TA');
   const occasion = input({ type: 'text', value: g ? g.occasion : '', placeholder: '生日 / 纪念日 / 没理由的惊喜…' });
   const date = input({ type: 'date', value: g && g.date ? g.date.slice(0, 10) : '' });
-  const note = textarea({ placeholder: 'TA当时的反应、为什么选它…（可空）' }, g ? g.note : '');
+  const note = textarea({ placeholder: `${subject}当时的反应、为什么选它…（可空）` }, g ? g.note : '');
   const md = openModal({
     title: g ? '编辑礼物' : '记一件礼物',
     content: el('div', null, field('礼物', title), field('方向', direction), field('场合', occasion), field('日期', date), field('备注', note)),
@@ -236,8 +240,8 @@ function drawTab() {
     // 三路来源：未实现愿望 / TA的喜欢 / 内置卡池
     const openWishes = wishes.filter((w) => w.status !== '已实现').map((w) => ({ text: '去实现：' + w.title, from: '来自愿望清单' }));
     let likes = [];
-    try { likes = (await get('/api/preferences')).filter((p) => p.polarity === '喜欢').map((p) => ({ text: '围绕TA喜欢的「' + p.title + '」安排一次', from: '来自TA的偏好' })); } catch (e) { /* ignore */ }
-    const pool = DATE_IDEAS.map((t) => ({ text: t, from: '灵感卡池' }));
+    try { likes = (await get('/api/preferences')).filter((p) => p.polarity === '喜欢').map((p) => ({ text: `围绕${subjectLabel()}喜欢的「${p.title}」安排一次`, from: `来自${subjectLabel()}的偏好` })); } catch (e) { /* ignore */ }
+    const pool = DATE_IDEAS.map((t) => ({ text: t.replaceAll('TA', subjectLabel()), from: '灵感卡池' }));
     const pick = (arr) => arr.length ? arr[Math.floor(Math.random() * arr.length)] : null;
     const picks = [pick(openWishes), pick(likes), pick(pool), pick(pool), pick(pool)].filter(Boolean);
     const used = new Set();
@@ -253,7 +257,7 @@ function drawTab() {
   };
   zone.append(
     el('div', { class: 'empty-icon', text: '🃏' }),
-    el('p', { style: 'color:var(--muted);font-size:14px', text: '不知道去哪约会？从TA的愿望、TA的喜欢和60张灵感卡里抽三张' }),
+    el('p', { style: 'color:var(--muted);font-size:14px', text: `不知道去哪约会？从${subjectLabel()}的愿望、${subjectLabel()}的喜欢和60张灵感卡里抽三张` }),
     el('button', { class: 'primary-btn', style: 'margin-top:16px', text: '🎲 抽三张', onclick: draw }),
     cards);
   return zone;

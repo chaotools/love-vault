@@ -45,6 +45,18 @@ test('同名人物按 ID 生成稳定标签，分组筛选不保留隐藏端点'
   });
 });
 
+test('关系图中心节点和 TA 关系边使用自定义主角称呼，内部 ID 仍为 TA', () => {
+  return modelPromise.then(({ buildRelationModel, relationDetail }) => {
+    const model = buildRelationModel(samplePeople(), 'all', '小鹿');
+    const center = model.nodes.find((node) => node.id === 'TA');
+    const edge = model.edges.find((item) => item.kind === 'ta');
+    assert.equal(center.label, '小鹿');
+    assert.equal(edge.sourceLabel, '小鹿');
+    assert.equal(edge.from, 'TA');
+    assert.equal(relationDetail(edge), '小鹿 → 李阿姨：妈妈');
+  });
+});
+
 test('双向关系使用 ↔、不绘制箭头，并清理空备注文本', () => {
   return modelPromise.then(({ buildRelationModel, personRelationEdges, relationDetail }) => {
     const model = buildRelationModel([

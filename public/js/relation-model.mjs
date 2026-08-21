@@ -58,9 +58,10 @@ function assignCurves(edges) {
  * Build the single source of truth used by the relation graph and relation list.
  * relations[{toId,type,bidirectional?}] means source person -> target person;
  * bidirectional=true means the relation is mutual and is rendered as source ↔ target.
- * person.relation means TA -> person: the relationship of TA to that person.
+ * person.relation means subject -> person: the relationship of the memory subject to that person.
  */
-export function buildRelationModel(people = [], filterGroup = 'all') {
+export function buildRelationModel(people = [], filterGroup = 'all', subjectLabel = 'TA') {
+  const centerLabel = typeof subjectLabel === 'string' && subjectLabel.trim() ? subjectLabel.trim() : 'TA';
   const allPeople = Array.isArray(people) ? people.filter((person) => person && person.id) : [];
   const labels = disambiguatedLabels(allPeople);
   const visiblePeople = filterGroup === 'all'
@@ -68,7 +69,7 @@ export function buildRelationModel(people = [], filterGroup = 'all') {
     : allPeople.filter((person) => person.group === filterGroup);
   const visibleIds = new Set(visiblePeople.map((person) => person.id));
   const byId = new Map(allPeople.map((person) => [person.id, person]));
-  const nodes = [{ id: 'TA', label: 'TA', group: 'TA', fixed: true, center: true }];
+  const nodes = [{ id: 'TA', label: centerLabel, group: 'TA', fixed: true, center: true }];
   const edges = [];
 
   for (const person of visiblePeople) {
@@ -83,7 +84,7 @@ export function buildRelationModel(people = [], filterGroup = 'all') {
         note: '',
         kind: 'ta',
         directed: true,
-        sourceLabel: 'TA',
+        sourceLabel: centerLabel,
         targetLabel: labels.get(person.id)
       });
     }

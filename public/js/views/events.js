@@ -1,5 +1,5 @@
 // 大事记视图：竖向时间线，里程碑/约会/旅行/争吵与和解/承诺
-import { el, get, post, patch, del, toast, openModal, openLightbox, field, input, select, textarea, fmtDate, toLocalInput, emptyState, mediaPreview } from '../core.js';
+import { el, get, post, patch, del, toast, openModal, openLightbox, field, input, select, textarea, fmtDate, toLocalInput, emptyState, mediaPreview, subjectLabel } from '../core.js';
 
 const TYPES = ['里程碑', '约会', '旅行', '争吵与和解', '承诺', '其他'];
 const TYPE_ICON = { 里程碑: '💘', 约会: '🌹', 旅行: '✈️', 争吵与和解: '🕊️', 承诺: '🤙', 其他: '📌' };
@@ -111,7 +111,7 @@ function editEvent(e) {
   const title = input({ type: 'text', value: e ? e.title : '', placeholder: '比如：第一次一起看海' });
   const type = select(TYPES.map((t) => [t, (TYPE_ICON[t] || '') + ' ' + t]), e ? e.type : (filterType !== 'all' ? filterType : '里程碑'));
   const location = input({ type: 'text', value: e ? e.location : '', placeholder: '地点（可空）' });
-  const desc = textarea({ placeholder: '发生了什么、TA说了什么、你的感受…（可空）' }, e ? e.description : '');
+  const desc = textarea({ placeholder: `发生了什么、${subjectLabel()}说了什么、你的感受…（可空）` }, e ? e.description : '');
 
   // 关联照片选择器
   const selected = new Set(e ? (e.mediaIds || []) : []);

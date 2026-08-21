@@ -1,5 +1,5 @@
 // 偏好视图：喜欢 / 不喜欢 双栏，按 吃/喝/穿/用/玩 分组
-import { el, get, post, patch, del, toast, openModal, field, input, select, emptyState } from '../core.js';
+import { el, get, post, patch, del, toast, openModal, field, input, select, emptyState, subjectLabel } from '../core.js';
 
 const CATEGORIES = ['吃', '喝', '穿', '用', '玩', '其他'];
 let prefs = [];
@@ -49,7 +49,8 @@ function buildColumns() {
   cols.innerHTML = '';
   const shown = prefs.filter((p) => filterCat === 'all' || p.category === filterCat);
 
-  for (const [polarity, cls, icon, title] of [['喜欢', 'like', '💗', 'TA 喜欢'], ['不喜欢', 'dislike', '🙅', 'TA 不喜欢']]) {
+  const subject = subjectLabel();
+  for (const [polarity, cls, icon, title] of [['喜欢', 'like', '💗', `${subject} 喜欢`], ['不喜欢', 'dislike', '🙅', `${subject} 不喜欢`]]) {
     const items = shown.filter((p) => p.polarity === polarity);
     const col = el('div', { class: 'pref-col ' + cls },
       el('h3', null, `${icon} ${title}`, el('span', { style: 'font-size:12px;color:var(--muted)', text: items.length + ' 条' })));

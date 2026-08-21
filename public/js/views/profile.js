@@ -1,5 +1,5 @@
 // TA的档案：基本信息 / 尺码 / 健康 / 生理期 / 自定义字段 / 我们的故事
-import { el, get, put, toast, openModal, field, input, select, emptyState } from '../core.js';
+import { el, get, put, toast, openModal, field, input, select, emptyState, subjectLabel } from '../core.js';
 
 const BASIC_FIELDS = [
   ['nickname', '昵称'], ['birthday', '生日'], ['zodiac', '星座'], ['bloodType', '血型'],
@@ -82,7 +82,7 @@ function build() {
   const page = el('div', { class: 'page' });
   page.append(el('div', { class: 'page-head' },
     el('div', null,
-      el('div', { class: 'page-title', text: '🧸 TA的档案' }),
+      el('div', { class: 'page-title', text: `🧸 ${subjectLabel()}的档案` }),
       el('div', { class: 'page-desc', text: '身高体重尺码健康……送礼点餐，直接抄答案' }))));
 
   const grid = el('div', { class: 'profile-grid' });
@@ -280,7 +280,7 @@ function editCustom(f) {
 
 /* 我们的故事 */
 function storyEditor() {
-  const ta = el('textarea', { placeholder: '怎么认识的、第一次约会说了什么、TA哪一点打动了你……写下来，越早写越清楚。' });
+  const ta = el('textarea', { placeholder: `怎么认识的、第一次约会说了什么、${subjectLabel()}哪一点打动了你……写下来，越早写越清楚。` });
   ta.value = profile.story || '';
   let dirty = false;
   ta.addEventListener('input', () => { dirty = true; });

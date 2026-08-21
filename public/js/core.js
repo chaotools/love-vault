@@ -1,4 +1,5 @@
 // 前端工具核心：DOM 构建 / API / 弹窗 / 灯箱 / 轻量状态总线
+import { subjectLabelFromConfig, quickWishSourceFromConfig } from './subject-label.mjs';
 export function el(tag, attrs = {}, ...children) {
   attrs = attrs || {};
   const node = document.createElement(tag);
@@ -82,6 +83,10 @@ export const store = {
     listeners.get(key).push(fn);
   }
 };
+
+// 所有展示文案通过这个 helper 读取统一称呼；空值和旧配置回退为 TA。
+export const subjectLabel = () => subjectLabelFromConfig(store.data.config);
+export const quickWishSource = () => quickWishSourceFromConfig(store.data.config);
 
 /* ---------- API ---------- */
 export async function api(method, path, body) {
@@ -239,7 +244,7 @@ export function initLightbox() {
 }
 
 /* ---------- 通用空状态 ---------- */
-export const emptyState = (icon, html) => el('div', { class: 'empty' },
+export const emptyState = (icon, content) => el('div', { class: 'empty' },
   el('div', { class: 'empty-icon', text: icon }),
-  el('p', { html })
+  typeof content === 'string' ? el('p', { html: content }) : el('p', null, content)
 );
