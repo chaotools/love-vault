@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { rateLimit } = require('../src/rate-limit');
-const { resolveConfig, validateUserAiSettings, validateUserAiSettingsAsync, isPublicIp } = require('../src/ai');
+const { resolveConfig, validateUserAiSettings, validateUserAiSettingsAsync, isPublicIp, buildPinnedHttpsOptions } = require('../src/ai');
 
 function invoke(middleware, req = {}) {
   let nextCalled = false;
@@ -47,4 +47,23 @@ test('多用户模式允许公网自定义供应商，但拒绝危险地址并�
     if (oldToken === undefined) delete process.env.MOBILE_SERVICE_TOKEN;
     else process.env.MOBILE_SERVICE_TOKEN = oldToken;
   }
+});
+
+test('自定义 AI 请求固定使用已验证的 DNS 地址，不能在连接时重绑定', () => {
+  const endpoint = {
+    hostname: 'ai.example',
+    addresses: [{ address: '8.8.8.8', family: 4 }]
+  };
+  const options = buildPinnedHttpsOptions(endpoint, new URL('https://ai.example/v1/chat/completions'), { method: 'POST' });
+  assert.equal(options.hostname, 'ai.example');
+  assert.equal(options.servername, 'ai.example');
+  options.lookup('ai.example', {}, (error, address, family) => {
+    assert.equal(error, null);
+    assert.equal(address, '8.8.8.8');
+    assert.equal(family, 4);
+  });
+  assert.throws(
+    () => buildPinnedHttpsOptions(endpoint, new URL('https://other.example/v1/chat/completions')),
+    /无法解析为公网地址/
+  );
 });

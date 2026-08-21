@@ -2,6 +2,7 @@
 // 优先级：环境变量 AI_BASE_URL / AI_API_KEY / AI_MODEL > config.json 里的 ai 配置
 const dns = require('dns').promises;
 const net = require('net');
+const https = require('https');
 const { decryptApiKey } = require('./secrets');
 const { formatDate, shanghaiParts, TIME_ZONE } = require('./date-resolution');
 
@@ -78,7 +79,67 @@ async function validateCustomEndpoint(value) {
   if (!records.length || records.some((record) => !isPublicIp(record.address))) {
     return { ok: false, error: CUSTOM_ENDPOINT_DNS_ERROR };
   }
-  return parsed;
+  // 后续 HTTPS 请求必须复用这次已验证的地址，不能在连接时重新解析域名。
+  // 否则攻击者可以利用 DNS 重绑定，在校验后把域名切换到内网地址。
+  return { ...parsed, addresses: records };
+}
+
+function buildPinnedHttpsOptions(endpoint, target, { method, headers } = {}) {
+  const hostname = target && target.hostname && target.hostname.toLowerCase();
+  const address = endpoint && Array.isArray(endpoint.addresses) && endpoint.addresses[0];
+  if (!hostname || hostname !== endpoint.hostname || !address || !isPublicIp(address.address)) {
+    throw new Error(CUSTOM_ENDPOINT_DNS_ERROR);
+  }
+  return {
+    protocol: 'https:',
+    hostname,
+    port: target.port || 443,
+    path: target.pathname + target.search,
+    method,
+    headers,
+    agent: false,
+    // 保持原始域名的 SNI 与证书校验，同时用已验证的 IP 建立 TCP 连接。
+    servername: endpoint.hostname,
+    lookup: (_name, options, callback) => {
+      const done = typeof options === 'function' ? options : callback;
+      done(null, address.address, address.family);
+    }
+  };
+}
+
+function requestPinnedJson(endpoint, url, { method = 'POST', headers = {}, body, signal } = {}) {
+  const target = new URL(url);
+  const options = buildPinnedHttpsOptions(endpoint, target, { method, headers });
+  return new Promise((resolve, reject) => {
+    let abortHandler = null;
+    const cleanup = () => {
+      if (signal && abortHandler) signal.removeEventListener('abort', abortHandler);
+    };
+    const fail = (error) => { cleanup(); reject(error); };
+    const request = https.request(options, (response) => {
+      let raw = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => { raw += chunk; });
+      response.once('error', fail);
+      response.once('end', () => {
+        cleanup();
+        let data = {};
+        try { data = JSON.parse(raw); } catch { /* 保持与 fetch().json().catch 相同的空对象行为 */ }
+        resolve({ status: response.statusCode || 0, data });
+      });
+    });
+    request.once('error', fail);
+    if (signal) {
+      abortHandler = () => {
+        const error = new Error('AI 请求已取消');
+        error.name = 'AbortError';
+        request.destroy(error);
+      };
+      if (signal.aborted) abortHandler();
+      else signal.addEventListener('abort', abortHandler, { once: true });
+    }
+    request.end(body);
+  });
 }
 
 // 公开多用户服务不能让任意用户指定服务器要访问的地址，否则会形成 SSRF。
@@ -128,9 +189,10 @@ const isConfigured = (resolved) => Boolean(resolved.baseUrl && resolved.apiKey &
 // 传入 tools（OpenAI 工具定义数组）时返回 { content, toolCalls, assistantMessage }，
 // 否则保持旧行为返回文本字符串。
 async function chatCompletion(resolved, messages, { temperature = 0.7, timeoutMs = 90000, tools } = {}) {
+  let customEndpoint = null;
   if (multiUserMode() && !process.env.AI_BASE_URL && resolved.provider === 'custom' && resolved.baseUrl) {
-    const endpoint = await validateCustomEndpoint(resolved.baseUrl);
-    if (!endpoint.ok) { const err = new Error(endpoint.error); err.status = 400; throw err; }
+    customEndpoint = await validateCustomEndpoint(resolved.baseUrl);
+    if (!customEndpoint.ok) { const err = new Error(customEndpoint.error); err.status = 400; throw err; }
   }
   if (!isConfigured(resolved)) {
     const err = new Error('AI 未配置：请在设置里选择供应商并填写 API Key');
@@ -145,18 +207,26 @@ async function chatCompletion(resolved, messages, { temperature = 0.7, timeoutMs
     // 个别兼容接口会偶发返回 HTTP 200 但没有 choices/message。此时安全地重试一次：
     // 本函数只请求模型，不执行工具或写入数据，重试不会造成重复记录。
     for (let attempt = 0; attempt < 2; attempt++) {
-      const resp = await fetch(resolved.baseUrl + '/chat/completions', {
+      const serializedPayload = JSON.stringify(payload);
+      const requestOptions = {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + resolved.apiKey },
-        body: JSON.stringify(payload),
-        redirect: 'error',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': String(Buffer.byteLength(serializedPayload)),
+          'Authorization': 'Bearer ' + resolved.apiKey
+        },
+        body: serializedPayload,
         signal: controller.signal
-      });
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) {
-        const err = new Error((data.error && data.error.message) || ('AI 接口返回 ' + resp.status));
+      };
+      const response = customEndpoint
+        ? await requestPinnedJson(customEndpoint, resolved.baseUrl + '/chat/completions', requestOptions)
+        : await fetch(resolved.baseUrl + '/chat/completions', { ...requestOptions, redirect: 'error' })
+            .then(async (resp) => ({ status: resp.status, data: await resp.json().catch(() => ({})) }));
+      const { status, data } = response;
+      if (status < 200 || status >= 300) {
+        const err = new Error((data.error && data.error.message) || ('AI 接口返回 ' + status));
         err.status = 502;
-        err.providerStatus = resp.status;
+        err.providerStatus = status;
         throw err;
       }
       const msg = data.choices && data.choices[0] && data.choices[0].message;
@@ -314,5 +384,5 @@ async function testConnection(resolved) {
 
 module.exports = {
   PROVIDERS, resolveConfig, validateUserAiSettings, validateUserAiSettingsAsync, validateCustomEndpoint,
-  isPublicIp, isConfigured, ask, testConnection, chatCompletion, chatCompletionWithTools, buildBaseMessages, buildDataContext
+  isPublicIp, buildPinnedHttpsOptions, isConfigured, ask, testConnection, chatCompletion, chatCompletionWithTools, buildBaseMessages, buildDataContext
 };
