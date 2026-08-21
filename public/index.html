@@ -33,23 +33,37 @@
   <header class="toolbar">
     <div class="toolbar-brand">
       <div class="toolbar-logo">💕</div>
-      <div class="toolbar-title" id="toolbarTitle">爱人记忆库</div>
+      <div class="toolbar-copy">
+        <div class="toolbar-title" id="toolbarTitle">爱人记忆库</div>
+        <div class="toolbar-subtitle">私密记忆空间</div>
+      </div>
     </div>
     <div class="global-search">
       <input id="globalSearch" type="search" placeholder="搜索一切：过敏、杨枝甘露、李阿姨…" autocomplete="off">
       <div class="search-dropdown" id="searchDropdown" hidden></div>
     </div>
     <div class="toolbar-actions">
-      <button class="icon-btn" id="quickNoteBtn" title="随手记">✎</button>
-      <button class="icon-btn" id="musicBtn" title="背景音乐" hidden>♫</button>
-      <button class="icon-btn" id="remindBtn" title="今日提醒">🔔</button>
-      <button class="icon-btn" id="themeBtn" title="切换深色 / 浅色">🌙</button>
-      <button class="icon-btn" id="settingsBtn" title="设置">⚙</button>
+      <button class="icon-btn" id="quickNoteBtn" title="随手记" aria-label="随手记">
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.5-4.5L16.8 4.2a2 2 0 0 1 2.8 2.8L8.3 18.3 4 20Z"/><path d="m14.8 6.2 3 3"/></svg>
+      </button>
+      <button class="icon-btn" id="musicBtn" title="背景音乐" aria-label="背景音乐" hidden>
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>
+      </button>
+      <button class="icon-btn" id="remindBtn" title="今日提醒" aria-label="今日提醒">
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+      </button>
+      <button class="icon-btn" id="themeBtn" title="切换深色 / 浅色" aria-label="切换深色或浅色">
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z"/></svg>
+      </button>
+      <button class="icon-btn" id="settingsBtn" title="设置" aria-label="设置">
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-1.8 1.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2h-2.5v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1-1.8-1.8.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H6.4v-2.5h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 1.8-1.8.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5v-.2H15v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1 1.8 1.8-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.2V14h-.2a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+      </button>
     </div>
   </header>
 
   <!-- 模块导航 -->
   <nav class="nav" id="nav">
+    <span class="nav-heading">浏览</span>
     <a href="#/timeline" data-route="timeline">时间轴</a>
     <a href="#/calendar" data-route="calendar">日历</a>
     <a href="#/profile" data-route="profile">TA档案</a>

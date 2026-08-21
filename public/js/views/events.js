@@ -42,7 +42,9 @@ function build() {
     seg.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b));
     buildList();
   }));
-  page.append(el('div', { class: 'view-filter' }, seg));
+  page.append(el('div', { class: 'view-filter events-filters' },
+    el('span', { class: 'filter-label', text: '记录类型' }),
+    seg));
 
   const list = el('div', { class: 'vtl', id: 'vtlList' });
   page.append(list);

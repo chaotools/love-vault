@@ -26,7 +26,7 @@ function build() {
   // 数字卡片
   const c = stats.counts;
   const doneRate = c.wishes ? Math.round((c.wishesDone / c.wishes) * 100) + '%' : '—';
-  const cards = el('div', { class: 'stats-cards' },
+  const cards = el('div', { class: 'stats-cards summary-cards' },
     statCard('💞', stats.daysTogether != null ? stats.daysTogether + ' 天' : '—', '在一起'),
     statCard('🖼️', c.photos, '照片'),
     statCard('🎬', c.videos, '视频'),
@@ -41,7 +41,7 @@ function build() {
   if (stats._activity) {
     const act = stats._activity;
     page.append(section('记录活跃'),
-      el('div', { class: 'stats-cards' },
+      el('div', { class: 'stats-cards activity-cards' },
         statCard('🔥', act.streak + ' 天', '连续记录'),
         statCard('📝', act.monthCount, '本月记录'),
         statCard('🗓️', act.lastRecordAt || '—', '最近记录')));
