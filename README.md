@@ -20,7 +20,7 @@
 | 📖 **大事记** | 里程碑/约会/旅行/争吵与和解/承诺，可关联照片；承诺可勾选兑现 |
 | 🎁 **愿望&礼物** | TA随口说想要的（三状态流转）、礼物双向记录防重复送、约会灵感抽卡（愿望+偏好+60张卡池） |
 | 🔍 **全局搜索** | 顶栏一个框，搜全部模块，点击直达 |
-| 🤖 **AI问答** | 自然语言问"TA对什么过敏？""送礼灵感？"；支持智谱GLM/OpenAI/DeepSeek/Kimi/通义千问/任意兼容接口，随时切换 |
+| 🤖 **AI 问答与记录** | 自然语言问"TA 对什么过敏？""送礼灵感？"；也可直接告诉 AI 新信息，AI 会写入偏好、大事记、愿望、人物或礼物，并提示本次已保存的条目 |
 
 ## 快速开始（本机）
 
@@ -35,6 +35,15 @@ npm start
 Windows 双击 `start.bat` 即可。手机与电脑同一 WiFi 时，用 `http://电脑IP:3000` 访问，浏览器菜单里"添加到主屏幕"即得全屏 App 体验（PWA）。
 
 本地模式不需要密码或服务令牌，适合个人电脑离线使用；请不要把这个未配置认证的本地模式直接暴露到公网。
+
+### 开发与 CI
+
+项目要求 Node.js ≥ 20.9；CI 在 Node 20 和 22 上执行语法检查、`npm test` 与 `npm audit --omit=dev`。本地提交前可运行：
+
+```bash
+npm test
+npm audit --omit=dev
+```
 
 ## 部署到服务器
 
@@ -84,6 +93,8 @@ pm2 save && pm2 startup
 
 AI 设置支持内置供应商和自定义 OpenAI 兼容接口。服务器多用户模式下，自定义接口必须是 HTTPS 公网域名并使用 443 端口；保存时会解析 DNS，拒绝环回、内网、链路本地、保留和组播地址，实际请求也禁止跟随跳转。这样无需把所有供应商硬编码，同时避免把 Love Vault 变成访问内网的 SSRF 代理。服务器本机的 Ollama、HTTP 接口或其他受信任内网网关，应通过 `AI_BASE_URL`、`AI_API_KEY`、`AI_MODEL` 由管理员统一配置。
 
+AI 会通过受限工具记录结构化信息，而不是让模型直接写文件：目前可创建偏好、大事记、愿望、人物和礼物。每次写入会在对话中显示保存结果；重复的同一事实会被拒绝，不会重复写入。
+
 ### 小程序接入
 
 小程序不直接访问 Love Vault，也不持有网页 Cookie 或内部服务令牌。它先由现有后端验证微信
@@ -105,12 +116,18 @@ AI 设置支持内置供应商和自定义 OpenAI 兼容接口。服务器多用
 
 - **CSRF**：浏览器写请求必须与 `PUBLIC_ORIGIN` 完整一致（协议、主机与端口），跨域写操作返回 `403`；持有内部服务令牌的后端代理不受影响
 - **AI 隐私**：健康/生理期数据默认不发送给第三方大模型，可在 ⚙ 设置 → AI 隐私中显式开启
-- **上传校验**：扩展名、MIME 与真实媒体内容必须一致；照片最大 10 MB、视频最大 200 MB，拒绝可执行文件、SVG、伪造媒体与超限文件
+- **上传校验**：扩展名、MIME 与真实媒体内容必须一致；照片最大 10 MB、视频最大 200 MB、一次最多 10 个文件且总计最大 300 MB，拒绝可执行文件、SVG、伪造媒体与超限文件
 - **写时备份**：每个 JSON 文件写入前保留上一版为同名 `.bak`，误删误改可回滚
 
 ## 备份与搬家
 
 所有记忆（照片、视频、缩略图、各模块数据、配置）都在 `data/`（或你指定的 `DATA_DIR`）里；多用户部署时位于 `data/users/<内部 UUID>/`。**定期备份整个目录**，换机器时恢复该目录即可。生产环境可使用 `deploy/backup.sh` 生成加密备份包。
+
+设置页还支持导出和导入单个记忆库的 ZIP：导出包含结构化记录、照片、视频、缩略图和音乐；已保存的 AI API Key 不会写入导出包，导入包中的 API Key 也会被丢弃，目标库已有的 Key 会保留。导入前会校验 ZIP 结构、媒体类型及容量，仍建议先保留完整 `data/` 备份。
+
+### 照片与视频时间
+
+上传多个文件时可为每个文件填写“实际拍摄时间”。时间优先级为：**手动填写 > 文件元数据**（照片 EXIF / 视频媒体信息）**> 服务端接收文件的时间**。上传后也可在时间轴编辑时间；已有记录不会因升级而自动改写日期。
 
 ## 从旧版 love-memory 迁移
 
@@ -129,14 +146,14 @@ src/media.js         EXIF/缩略图/视频封面/HEIC
 src/ai.js            多供应商大模型（OpenAI 兼容协议单点封装）
 src/auth.js          小程序服务令牌、扫码网页登录会话与本地模式边界
 src/user-data.js     按用户隔离的 JSON 存储、媒体目录与旧数据迁移
-src/routes/          REST API（memories/profile/preferences/people/events/wishes/gifts/search/ask/config）
+src/routes/          REST API（内容、搜索、AI、相册、日历、统计、导入导出等）
 public/              前端（原生 ES Modules，无构建）
 data/                ★ 全部记忆（多用户时为 users/<内部 UUID>/）
 ```
 
 ## 数据模型速览
 
-- `config.json`：标题、名字、记忆主角称呼 `subjectName`、纪念日、AI 配置、密码哈希
+- `config.json`：标题、名字、记忆主角称呼 `subjectName`、纪念日与 AI 配置（保存的 AI API Key 不会随导出包迁移）
 - `profile.json`：basics（身高/体重/尺码…）+ health + period + 自定义字段 + story
 - `preferences.json` / `people.json` / `events.json` / `wishes.json` / `gifts.json` / `memories.json`
 
@@ -150,3 +167,13 @@ data/                ★ 全部记忆（多用户时为 users/<内部 UUID>/）
 分开展示；程序不会根据“妈妈”等关系自动推导反向关系，双向关系必须由用户明确勾选。
 
 均为带 `id/createdAt/updatedAt` 的 JSON 数组（profile 为对象），人可直接阅读，方便导出和二次利用。
+
+## API 概览
+
+认证后的 API 按当前用户隔离，主要路由包括：
+
+- 内容：`/api/config`、`/api/profile`、`/api/preferences`、`/api/people`、`/api/events`、`/api/wishes`、`/api/gifts`、`/api/albums`、`/api/memories`
+- 功能：`/api/search`、`/api/ask`、`/api/stats`、`/api/calendar`、`/api/reminders`、`/api/transfer/export`、`/api/transfer/import`
+- 登录：`/api/auth/*` 用于扫码登录挑战与会话状态；`/media/*`、`/thumbs/*`、`/music/*` 同样必须经过认证，不能作为公开文件目录使用。
+
+除本地单用户模式外，未登录访问 API 或媒体会返回 `401`。小程序只应通过现有后端的受鉴权代理访问，不应直接持有网页会话或内部服务令牌。
