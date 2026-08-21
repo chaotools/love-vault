@@ -10,3 +10,8 @@ export function normalizeSubjectLabel(value) {
 export function subjectLabelFromConfig(config) {
   return normalizeSubjectLabel(config && config.subjectName);
 }
+
+// 随手记创建愿望时写入的来源也要使用展示称呼，避免新旧文案不一致。
+export function quickWishSourceFromConfig(config) {
+  return `${subjectLabelFromConfig(config)}随口说的`;
+}

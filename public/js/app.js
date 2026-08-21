@@ -1,5 +1,5 @@
 // 应用主控：启动、路由、全局搜索、随手记、设置、登录、首屏
-import { el, get, post, toast, store, openModal, field, input, select, fmtDate, initLightbox, pad, subjectLabel } from './core.js';
+import { el, get, post, toast, store, openModal, field, input, select, fmtDate, initLightbox, pad, subjectLabel, quickWishSource } from './core.js';
 import { lunarDateText, nextOccurrence, daysUntil } from './lunar.js';
 import * as timeline from './views/timeline.js';
 import * as profile from './views/profile.js';
@@ -374,7 +374,7 @@ function initQuickNote() {
         if (k === 'event') await post('/api/events', { date: new Date().toISOString(), title: v, type: '其他' });
         else if (k === 'like') await post('/api/preferences', { polarity: '喜欢', category: '其他', title: v });
         else if (k === 'dislike') await post('/api/preferences', { polarity: '不喜欢', category: '其他', title: v });
-        else if (k === 'wish') await post('/api/wishes', { title: v, status: '想要', source: 'TA随口说的' });
+        else if (k === 'wish') await post('/api/wishes', { title: v, status: '想要', source: quickWishSource() });
         else if (k === 'person') await post('/api/people', { name: v, group: '其他' });
         toast('记下了 💕');
         m.close();
