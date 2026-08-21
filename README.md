@@ -82,6 +82,8 @@ pm2 save && pm2 startup
 | `PUBLIC_ORIGIN` | - | 公网网页地址，例如 `https://love.chaotools.tech`；生产环境用于严格 CSRF Origin 校验 |
 | `VAULT_ENC_KEY` | - | 生产环境必须设置的高熵密钥。网页保存的 AI API Key 会以 AES-256-GCM 加密落盘，启动时自动迁移已有明文配置与 `.bak` 备份；丢失或更换该密钥会使既有 Key 无法使用 |
 
+AI 设置支持内置供应商和自定义 OpenAI 兼容接口。服务器多用户模式下，自定义接口必须是 HTTPS 公网域名并使用 443 端口；保存时会解析 DNS，拒绝环回、内网、链路本地、保留和组播地址，实际请求也禁止跟随跳转。这样无需把所有供应商硬编码，同时避免把 Love Vault 变成访问内网的 SSRF 代理。服务器本机的 Ollama、HTTP 接口或其他受信任内网网关，应通过 `AI_BASE_URL`、`AI_API_KEY`、`AI_MODEL` 由管理员统一配置。
+
 ### 小程序接入
 
 小程序不直接访问 Love Vault，也不持有网页 Cookie 或内部服务令牌。它先由现有后端验证微信
