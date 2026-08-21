@@ -65,7 +65,7 @@ function build() {
         // 头部按钮的点击处理器在构造时绑定为读取当前 tab，这里只更新文案
         page.querySelector('.primary-btn').textContent = '＋ ' + (v === 'gift' ? '记一件礼物' : v === 'wish' ? '记一个愿望' : '抽三张');
       } })));
-  page.append(el('div', { class: 'view-filter' }, seg));
+  page.append(el('div', { class: 'view-filter wishes-tabs' }, seg));
 
   const body = el('div', { id: 'wishBody' });
   page.append(body);

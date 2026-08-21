@@ -85,7 +85,13 @@ function build() {
     else { destroyGraph(); buildGrid(); }
   }));
 
-  page.append(el('div', { class: 'view-filter' }, seg, viewSeg));
+  page.append(el('div', { class: 'view-filter people-filters' },
+    el('div', { class: 'people-filter-group' },
+      el('span', { class: 'filter-label', text: '人物分组' }),
+      seg),
+    el('div', { class: 'people-filter-group' },
+      el('span', { class: 'filter-label', text: '查看方式' }),
+      viewSeg)));
 
   const grid = el('div', { class: 'people-grid', id: 'peopleGrid' });
   const graphBox = el('div', { class: 'people-graph', id: 'peopleGraph', hidden: true },

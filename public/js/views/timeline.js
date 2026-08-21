@@ -31,10 +31,24 @@ function build() {
   viewEl.innerHTML = '';
   const page = el('div', { class: 'timeline-page' });
 
+  const totalMemories = memories.length + events.length;
+  const overview = el('section', { class: 'timeline-overview' },
+    el('div', { class: 'timeline-overview-copy' },
+      el('div', { class: 'eyebrow', text: 'YOUR LITTLE ARCHIVE' }),
+      el('h2', { class: 'timeline-overview-title', text: '把重要的日子，放在这里' }),
+      el('p', { class: 'timeline-overview-desc', text: '照片、片段和想记住的事，按时间慢慢长成你们的故事。' })
+    ),
+    el('div', { class: 'timeline-overview-stat' },
+      el('strong', { text: String(totalMemories) }),
+      el('span', { text: '条记忆' })
+    )
+  );
+
   // 快速输入框：回车直接记一条大事记
   const quick = input({ type: 'text', placeholder: '今天发生了什么？一句话记下来，回车保存…' });
-  quick.addEventListener('keydown', async (e) => {
-    if (e.key !== 'Enter' || !quick.value.trim()) return;
+  const quickSave = el('button', { class: 'primary-btn quick-note-submit', text: '记下' });
+  const saveQuickNote = async () => {
+    if (!quick.value.trim()) return;
     try {
       await post('/api/events', { date: new Date().toISOString(), title: quick.value.trim(), type: '其他' });
       toast('记下了 💕');
@@ -42,8 +56,11 @@ function build() {
       events = await get('/api/events');
       build();
     } catch (err) { toast(err.message, 'err'); }
-  });
-  page.append(el('div', { class: 'quick-note-bar' }, el('span', { text: '✎' }), quick));
+  };
+  quick.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveQuickNote(); });
+  quickSave.addEventListener('click', saveQuickNote);
+  page.append(overview, el('div', { class: 'quick-note-bar' },
+    el('span', { class: 'quick-note-icon', text: '✎' }), quick, quickSave));
 
   // 相册分组
   const albumChips = el('div', { class: 'album-chips' });
@@ -66,7 +83,6 @@ function build() {
     if (albums.length) albumChips.append(el('button', { class: 'album-chip manage', text: '管理', onclick: manageAlbums }));
   };
   renderAlbumChips();
-  page.append(albumChips);
 
   // 筛选
   const seg = el('div', { class: 'seg' },
@@ -84,7 +100,14 @@ function build() {
     el('option', { value: 'all', text: '所有年份' }),
     ...years.map((y) => el('option', { value: y, text: y + ' 年' })));
   yearSel.value = filter.year;
-  page.append(el('div', { class: 'view-filter' }, seg, yearSel));
+  page.append(el('section', { class: 'timeline-tools' },
+    el('div', { class: 'timeline-tools-head' },
+      el('div', { class: 'timeline-tools-title', text: '整理你的记忆' }),
+      el('div', { class: 'timeline-tools-desc', text: '按相册、类型或年份快速找到想看的那一刻' })
+    ),
+    albumChips,
+    el('div', { class: 'view-filter' }, seg, yearSel)
+  ));
 
   const listEl = el('div', { id: 'timelineList' });
   page.append(listEl, el('button', { class: 'fab', text: '＋', title: '上传照片/视频', onclick: openUpload }));
