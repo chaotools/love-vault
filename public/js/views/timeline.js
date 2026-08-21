@@ -1,5 +1,6 @@
 // 时间轴视图：照片 + 视频 + 文字大事记 按月混排
 import { el, get, post, patch, del, toast, openModal, openLightbox, field, input, textarea, select, fmtDate, fmtDay, fmtDuration, toLocalInput, emptyState, mediaPreview } from '../core.js';
+import { singleFlight } from '../single-flight.mjs';
 
 let memories = [];
 let events = [];
@@ -47,7 +48,7 @@ function build() {
   // 快速输入框：回车直接记一条大事记
   const quick = input({ type: 'text', placeholder: '今天发生了什么？一句话记下来，回车保存…' });
   const quickSave = el('button', { class: 'primary-btn quick-note-submit', text: '记下' });
-  const saveQuickNote = async () => {
+  const saveQuickNote = singleFlight(async () => {
     if (!quick.value.trim()) return;
     try {
       await post('/api/events', { date: new Date().toISOString(), title: quick.value.trim(), type: '其他' });
@@ -56,7 +57,10 @@ function build() {
       events = await get('/api/events');
       build();
     } catch (err) { toast(err.message, 'err'); }
-  };
+  }, (pending) => {
+    quickSave.disabled = pending;
+    quickSave.textContent = pending ? '保存中…' : '记下';
+  });
   quick.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveQuickNote(); });
   quickSave.addEventListener('click', saveQuickNote);
   page.append(overview, el('div', { class: 'quick-note-bar' },
