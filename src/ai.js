@@ -1,5 +1,7 @@
 // 大模型调用：所有供应商统一走 OpenAI 兼容 Chat Completions 协议
 // 优先级：环境变量 AI_BASE_URL / AI_API_KEY / AI_MODEL > config.json 里的 ai 配置
+const dns = require('dns').promises;
+const net = require('net');
 const { decryptApiKey } = require('./secrets');
 const { formatDate, shanghaiParts, TIME_ZONE } = require('./date-resolution');
 
@@ -20,6 +22,65 @@ function sameOrigin(url, trusted) {
   try { return new URL(url).origin === new URL(trusted).origin; } catch { return false; }
 }
 
+const CUSTOM_ENDPOINT_ERROR = '自定义 AI 接口必须使用 HTTPS 公网域名（仅支持 443 端口）';
+const CUSTOM_ENDPOINT_DNS_ERROR = '自定义 AI 接口域名无法解析为公网地址';
+
+// 自定义供应商允许很多公共 OpenAI 兼容服务，但不能让用户把服务器变成 SSRF 代理。
+function isPublicIp(address) {
+  const family = net.isIP(address);
+  if (family === 4) {
+    const parts = address.split('.').map((part) => Number(part));
+    if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
+    const [a, b, c] = parts;
+    if (a === 0 || a === 10 || a === 127 || a >= 224) return false;
+    if (a === 100 && b >= 64 && b <= 127) return false; // 共享地址空间
+    if (a === 169 && b === 254) return false; // 链路本地
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && (b === 0 || b === 168)) return false;
+    if (a === 198 && (b === 18 || b === 19 || b === 51)) return false;
+    if (a === 203 && b === 0 && c === 113) return false;
+    return true;
+  }
+  if (family === 6) {
+    const normalized = address.toLowerCase().split('%')[0];
+    if (normalized.startsWith('::ffff:')) return isPublicIp(normalized.slice(7));
+    if (normalized === '::' || normalized === '::1' || normalized.startsWith('2001:db8:')) return false;
+    const firstHextet = parseInt(normalized.split(':')[0], 16);
+    // 仅允许 IPv6 全局单播（2000::/3）；自动排除回环、ULA、链路本地和组播。
+    return Number.isInteger(firstHextet) && firstHextet >= 0x2000 && firstHextet <= 0x3fff;
+  }
+  return false;
+}
+
+function parseCustomBaseUrl(value) {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw) return { ok: true, normalized: '', hostname: '' };
+  let url;
+  try { url = new URL(raw); } catch { return { ok: false, error: CUSTOM_ENDPOINT_ERROR }; }
+  const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  if (url.protocol !== 'https:' || !hostname || net.isIP(hostname) || url.username || url.password
+    || url.search || url.hash || (url.port && url.port !== '443')) {
+    return { ok: false, error: CUSTOM_ENDPOINT_ERROR };
+  }
+  const pathname = url.pathname.replace(/\/+$/, '');
+  return { ok: true, normalized: url.origin + pathname, hostname };
+}
+
+async function validateCustomEndpoint(value) {
+  const parsed = parseCustomBaseUrl(value);
+  if (!parsed.ok || !parsed.hostname) return parsed;
+  let records;
+  try {
+    records = await dns.lookup(parsed.hostname, { all: true, verbatim: true });
+  } catch {
+    return { ok: false, error: CUSTOM_ENDPOINT_DNS_ERROR };
+  }
+  if (!records.length || records.some((record) => !isPublicIp(record.address))) {
+    return { ok: false, error: CUSTOM_ENDPOINT_DNS_ERROR };
+  }
+  return parsed;
+}
+
 // 公开多用户服务不能让任意用户指定服务器要访问的地址，否则会形成 SSRF。
 // 管理员仍可通过 AI_BASE_URL 在服务器环境变量中设置受信任的专用网关。
 function validateUserAiSettings(ai = {}) {
@@ -27,11 +88,18 @@ function validateUserAiSettings(ai = {}) {
   const preset = PROVIDERS[provider];
   const baseUrl = typeof ai.baseUrl === 'string' ? ai.baseUrl.trim() : '';
   if (!multiUserMode()) return { ok: true };
-  if (!preset || provider === 'custom') return { ok: false, error: '公开服务不支持用户自定义 AI 接口地址，请选择内置供应商' };
+  if (!preset) return { ok: false, error: '未知的 AI 供应商' };
+  if (provider === 'custom') return parseCustomBaseUrl(baseUrl);
   if (baseUrl && (!baseUrl.startsWith('https://') || !sameOrigin(baseUrl, preset.baseUrl))) {
     return { ok: false, error: '公开服务的 AI 接口地址必须使用所选内置供应商的 HTTPS 官方域名' };
   }
   return { ok: true };
+}
+
+async function validateUserAiSettingsAsync(ai = {}) {
+  const basic = validateUserAiSettings(ai);
+  if (!basic.ok || !multiUserMode() || ai.provider !== 'custom' || !ai.baseUrl) return basic;
+  return validateCustomEndpoint(ai.baseUrl);
 }
 
 // 解析出实际生效的 AI 配置
@@ -40,8 +108,10 @@ function resolveConfig(config) {
   const provider = ai.provider || 'zhipu';
   const preset = PROVIDERS[provider] || PROVIDERS.custom;
   const requestedBaseUrl = ai.baseUrl || preset.baseUrl || '';
-  const safeUserBaseUrl = multiUserMode() && (!preset.baseUrl || !sameOrigin(requestedBaseUrl, preset.baseUrl))
-    ? preset.baseUrl
+  const safeUserBaseUrl = multiUserMode()
+    ? provider === 'custom'
+      ? (parseCustomBaseUrl(requestedBaseUrl).normalized || '')
+      : ((!preset.baseUrl || !sameOrigin(requestedBaseUrl, preset.baseUrl)) ? preset.baseUrl : requestedBaseUrl)
     : requestedBaseUrl;
   return {
     provider,
@@ -58,6 +128,10 @@ const isConfigured = (resolved) => Boolean(resolved.baseUrl && resolved.apiKey &
 // 传入 tools（OpenAI 工具定义数组）时返回 { content, toolCalls, assistantMessage }，
 // 否则保持旧行为返回文本字符串。
 async function chatCompletion(resolved, messages, { temperature = 0.7, timeoutMs = 90000, tools } = {}) {
+  if (multiUserMode() && !process.env.AI_BASE_URL && resolved.provider === 'custom' && resolved.baseUrl) {
+    const endpoint = await validateCustomEndpoint(resolved.baseUrl);
+    if (!endpoint.ok) { const err = new Error(endpoint.error); err.status = 400; throw err; }
+  }
   if (!isConfigured(resolved)) {
     const err = new Error('AI 未配置：请在设置里选择供应商并填写 API Key');
     err.status = 503;
@@ -75,6 +149,7 @@ async function chatCompletion(resolved, messages, { temperature = 0.7, timeoutMs
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + resolved.apiKey },
         body: JSON.stringify(payload),
+        redirect: 'error',
         signal: controller.signal
       });
       const data = await resp.json().catch(() => ({}));
@@ -237,4 +312,7 @@ async function testConnection(resolved) {
   return reply.trim();
 }
 
-module.exports = { PROVIDERS, resolveConfig, validateUserAiSettings, isConfigured, ask, testConnection, chatCompletion, chatCompletionWithTools, buildBaseMessages, buildDataContext };
+module.exports = {
+  PROVIDERS, resolveConfig, validateUserAiSettings, validateUserAiSettingsAsync, validateCustomEndpoint,
+  isPublicIp, isConfigured, ask, testConnection, chatCompletion, chatCompletionWithTools, buildBaseMessages, buildDataContext
+};

@@ -456,6 +456,14 @@ async function openSettings() {
   const privacy = ai.privacy || {};
   const sAiHealth = input({ type: 'checkbox', checked: privacy.health === true });
   const sAiPeriod = input({ type: 'checkbox', checked: privacy.period === true });
+  let aiDirty = false;
+  const markAiDirty = () => { aiDirty = true; };
+  sProvider.addEventListener('change', markAiDirty);
+  sBaseUrl.addEventListener('input', markAiDirty);
+  sModel.addEventListener('input', markAiDirty);
+  sApiKey.addEventListener('input', markAiDirty);
+  sAiHealth.addEventListener('change', markAiDirty);
+  sAiPeriod.addEventListener('change', markAiDirty);
   const aiStatusLine = el('div', { class: 'ai-status-line', text: aiStatus.configured ? `当前可用：${aiStatus.provider} · ${aiStatus.model}` : '尚未配置' });
 
   const refreshModels = () => {
@@ -472,6 +480,7 @@ async function openSettings() {
       // 先保存当前填写的 AI 配置再测试
       try {
         await post('/api/config', { ai: { provider: sProvider.value, baseUrl: sBaseUrl.value.trim(), apiKey: sApiKey.value.trim(), model: sModel.value.trim(), privacy: { health: sAiHealth.checked, period: sAiPeriod.checked } } });
+        aiDirty = false;
         const r = await post('/api/ask/test', {});
         aiStatusLine.textContent = `✓ ${r.provider} · ${r.model}：${r.reply}`;
         aiStatusLine.className = 'ai-status-line ok';
@@ -526,7 +535,7 @@ async function openSettings() {
       ),
       el('div', { class: 'settings-section' },
         el('h4', { text: 'AI 问答（可以随时换供应商）' }),
-        field('供应商', sProvider), field('接口地址', sBaseUrl),
+        field('供应商', sProvider), field('接口地址', sBaseUrl, '自定义供应商需 HTTPS 公网域名（仅 443 端口）'),
         field('模型', el('span', null, sModel, modelList)),
         field('API Key', sApiKey),
         el('div', { class: 'settings-section' },
@@ -548,12 +557,13 @@ async function openSettings() {
         el: el('button', {
           class: 'primary-btn', text: '保存', onclick: async () => {
             try {
-              const saved = await post('/api/config', {
+              const body = {
                 title: sTitle.value.trim(), subjectName: sSubjectName.value.trim().slice(0, 30), names: sNames.value.trim(), anniversary: sAnn.value,
                 music: sMusic.value.trim(), periodEnabled: sPeriod.value === 'true',
-                memorialDays: days.filter((d) => d.name && d.date),
-                ai: { provider: sProvider.value, baseUrl: sBaseUrl.value.trim(), apiKey: sApiKey.value.trim(), model: sModel.value.trim(), privacy: { health: sAiHealth.checked, period: sAiPeriod.checked } }
-              });
+                memorialDays: days.filter((d) => d.name && d.date)
+              };
+              if (aiDirty) body.ai = { provider: sProvider.value, baseUrl: sBaseUrl.value.trim(), apiKey: sApiKey.value.trim(), model: sModel.value.trim(), privacy: { health: sAiHealth.checked, period: sAiPeriod.checked } };
+              const saved = await post('/api/config', body);
               store.set('config', saved);
               store.set('ai', await get('/api/ask/status'));
               toast('已保存 💕');
