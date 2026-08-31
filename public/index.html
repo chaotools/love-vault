@@ -8,14 +8,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <title>爱人记忆库</title>
   <link rel="stylesheet" href="/style.css">
-  <script>
-    // 首屏前应用主题，避免深色模式闪烁
-    try {
-      var t = localStorage.getItem('vault-theme');
-      if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      document.documentElement.dataset.theme = t;
-    } catch (e) {}
-  </script>
+  <script src="/js/theme-init.js"></script>
 </head>
 <body>
   <!-- 小程序扫码登录；静态壳可公开，任何数据接口都需要会话。 -->
