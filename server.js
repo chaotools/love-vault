@@ -22,6 +22,7 @@ const { computeReminders } = require('./src/reminders');
 const { UserDataManager, buildVault, loadVault, migrateLegacyTo } = require('./src/user-data');
 const { migrateStoredApiKeys } = require('./src/secrets');
 const { rateLimit } = require('./src/rate-limit');
+const { securityHeaders, validateRuntimeConfig } = require('./src/security');
 
 const ROOT = __dirname;
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -56,6 +57,7 @@ const serveVaultDir = (key) => (req, res, next) => express.static(req.vault[key]
 const app = express();
 // 仅在明确配置时信任反向代理传来的协议头，避免直接暴露端口时信任伪造头。
 if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
+app.use(securityHeaders);
 app.use(express.json({ limit: '4mb' }));
 
 // 认证：静态壳文件可访问，/api/auth/* 开放，其余 API 与媒体需要登录
@@ -107,6 +109,8 @@ app.use((err, req, res, next) => {
 
 // ---------- 启动 ----------
 async function init() {
+  const runtime = validateRuntimeConfig();
+  console.log(`运行模式: ${runtime.mode === 'multi-user' ? '服务器多用户' : '本地单用户'}`);
   await fsp.mkdir(DATA_DIR, { recursive: true });
   const legacyId = process.env.LEGACY_USER_ID || '';
   if (legacyId) await migrateLegacyTo(DATA_DIR, legacyId);
