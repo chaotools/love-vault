@@ -15,6 +15,7 @@ services:
       COOKIE_SECURE: true
       MOBILE_SERVICE_TOKEN: ${MOBILE_SERVICE_TOKEN:?set MOBILE_SERVICE_TOKEN in /srv/love-vault/.env}
       WEB_SESSION_SECRET: ${WEB_SESSION_SECRET:?set WEB_SESSION_SECRET in /srv/love-vault/.env}
+      WEB_SESSION_MAX_AGE_DAYS: ${WEB_SESSION_MAX_AGE_DAYS:-7}
       AUTH_BROKER_URL: ${AUTH_BROKER_URL:-http://host.docker.internal:8899/api/love-vault}
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?set PUBLIC_ORIGIN in /srv/love-vault/.env}
       VAULT_ENC_KEY: ${VAULT_ENC_KEY:?set VAULT_ENC_KEY in /srv/love-vault/.env}
