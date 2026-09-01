@@ -8,6 +8,8 @@ SESSION_SECRET='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 VAULT_KEY='cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'
 CONTAINER="love-vault-ci-${GITHUB_RUN_ID:-local}-${RANDOM}"
 FIXTURE="$(mktemp -d)"
+RUNNER_UID="$(id -u)"
+RUNNER_GID="$(id -g)"
 
 cleanup() {
   status=$?
@@ -16,6 +18,10 @@ cleanup() {
     docker logs "$CONTAINER" 2>/dev/null || true
   fi
   docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+  if [ -d "$FIXTURE" ]; then
+    docker run --rm --user root -v "$FIXTURE:/fixture" "$IMAGE" \
+      chown -R "$RUNNER_UID:$RUNNER_GID" /fixture >/dev/null 2>&1 || true
+  fi
   rm -rf -- "$FIXTURE"
   exit "$status"
 }
