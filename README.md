@@ -86,6 +86,7 @@ pm2 save && pm2 startup
 | `TRUST_PROXY` | - | HTTPS 反向代理时设为 `1`，让会话 Cookie 正确标记为 Secure |
 | `MOBILE_SERVICE_TOKEN` | - | 小程序后端与 Love Vault 之间的内部服务令牌；仅存于服务器环境变量，绝不能发送给小程序 |
 | `WEB_SESSION_SECRET` | - | 用于签发网页扫码登录会话的高强度密钥；生产环境必须设置 |
+| `WEB_SESSION_MAX_AGE_DAYS` | 7 | 网页会话有效期，允许 1–30 天 |
 | `AUTH_BROKER_URL` | - | 小程序后端的 Love Vault 登录桥接地址；网页扫码登录需要它 |
 | `LEGACY_USER_ID` | - | 可选。将旧版 `data/` 根目录数据迁移至指定 UUID 用户目录；迁移可恢复且不会覆盖已有文件 |
 | `PUBLIC_ORIGIN` | - | 公网网页地址，例如 `https://love.chaotools.tech`；生产环境用于严格 CSRF Origin 校验 |
@@ -106,7 +107,7 @@ AI 会通过受限工具记录结构化信息，而不是让模型直接写文�
 
 ### 安全（上服务器必读）
 
-1. **设置并保管密钥**：`MOBILE_SERVICE_TOKEN`、`WEB_SESSION_SECRET` 与 `VAULT_ENC_KEY` 必须是不同的高强度随机值，只放在服务器环境变量和 GitHub Secrets。迁移前先完成加密备份，之后不要随意轮换 `VAULT_ENC_KEY`。
+1. **设置并保管密钥**：`MOBILE_SERVICE_TOKEN`、`WEB_SESSION_SECRET` 与 `VAULT_ENC_KEY` 必须是不同且至少 32 字符的高强度随机值，只放在服务器环境变量和 GitHub Secrets。多用户模式缺少任一认证、加密、登录桥接或公网 Origin 配置时，应用会拒绝启动。迁移前先完成加密备份，之后不要随意轮换 `VAULT_ENC_KEY`。
 2. **只开放 Nginx 必要端口**：Love Vault 容器仅绑定 `127.0.0.1:3000`；小程序后端负责鉴权和媒体代理。
 3. **上 HTTPS**：公网部署必须套一层反向代理。Nginx 示例配置见 [deploy/love.chaotools.tech.conf](deploy/love.chaotools.tech.conf)；反向代理部署时设 `TRUST_PROXY=1`，让登录 Cookie 保持 `Secure`。
 

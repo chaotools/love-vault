@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
-const { requireAuth, router } = require('../src/auth');
+const { requireAuth, router, sessionMaxAgeDays, sessionMaxAgeSeconds } = require('../src/auth');
 
 function run(middleware, headers = {}) {
   let nextCalled = false;
@@ -67,5 +67,22 @@ test('web login status forwards its secret in a JSON POST body, never in the bro
     global.fetch = originalFetch;
     if (previousBroker === undefined) delete process.env.AUTH_BROKER_URL;
     else process.env.AUTH_BROKER_URL = previousBroker;
+  }
+});
+
+
+test('web sessions default to seven days and accept a bounded override', () => {
+  const previous = process.env.WEB_SESSION_MAX_AGE_DAYS;
+  try {
+    delete process.env.WEB_SESSION_MAX_AGE_DAYS;
+    assert.equal(sessionMaxAgeDays(), 7);
+    assert.equal(sessionMaxAgeSeconds(), 7 * 86400);
+    process.env.WEB_SESSION_MAX_AGE_DAYS = '14';
+    assert.equal(sessionMaxAgeDays(), 14);
+    process.env.WEB_SESSION_MAX_AGE_DAYS = '31';
+    assert.equal(sessionMaxAgeDays(), 7);
+  } finally {
+    if (previous === undefined) delete process.env.WEB_SESSION_MAX_AGE_DAYS;
+    else process.env.WEB_SESSION_MAX_AGE_DAYS = previous;
   }
 });

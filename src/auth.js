@@ -8,6 +8,12 @@ const COOKIE = 'vault_session';
 const SERVICE_TOKEN_HEADER = 'x-love-vault-service-token';
 const USER_HEADER = 'x-love-vault-user-id';
 const USER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DEFAULT_SESSION_DAYS = 7;
+function sessionMaxAgeDays() {
+  const value = Number(process.env.WEB_SESSION_MAX_AGE_DAYS || DEFAULT_SESSION_DAYS);
+  return Number.isInteger(value) && value >= 1 && value <= 30 ? value : DEFAULT_SESSION_DAYS;
+}
+function sessionMaxAgeSeconds() { return sessionMaxAgeDays() * 86400; }
 
 // 本地单用户模式：未配置任何认证环境变量时直接放行，数据仍用 data/ 根目录的旧布局
 const LOCAL_USER_ID = 'local';
@@ -26,7 +32,7 @@ function serviceMatches(req) {
 }
 function sign(value) { return crypto.createHmac('sha256', secret()).update(value).digest('base64url'); }
 function mintSession(userId) {
-  const payload = Buffer.from(JSON.stringify({ userId, exp: Date.now() + 30 * 86400_000 })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ userId, exp: Date.now() + sessionMaxAgeSeconds() * 1000 })).toString('base64url');
   return payload + '.' + sign(payload);
 }
 function readSession(req) {
@@ -123,11 +129,11 @@ function router() {
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || !USER_ID.test(body.userId || '')) return res.status(401).json({ error: body.detail || '登录凭证已失效' });
-      res.setHeader('Set-Cookie', cookie(mintSession(body.userId), 30 * 86400));
+      res.setHeader('Set-Cookie', cookie(mintSession(body.userId), sessionMaxAgeSeconds()));
       res.json({ ok: true });
     } catch { res.status(503).json({ error: '登录服务暂时不可用' }); }
   });
   return r;
 }
 
-module.exports = { requireAuth, router, readSession, serviceMatches, authConfigured, csrfProtect, LOCAL_USER_ID, COOKIE, SERVICE_TOKEN_HEADER, USER_HEADER };
+module.exports = { requireAuth, router, readSession, serviceMatches, authConfigured, csrfProtect, sessionMaxAgeDays, sessionMaxAgeSeconds, LOCAL_USER_ID, COOKIE, SERVICE_TOKEN_HEADER, USER_HEADER };
