@@ -18,6 +18,7 @@
   </script>
 </head>
 <body>
+  <a class="skip-link" href="#view">跳到主要内容</a>
   <!-- 小程序扫码登录；静态壳可公开，任何数据接口都需要会话。 -->
   <div class="login-overlay" id="loginOverlay" hidden>
     <div class="login-card">
@@ -39,7 +40,7 @@
       </div>
     </div>
     <div class="global-search">
-      <input id="globalSearch" type="search" placeholder="搜索一切：过敏、杨枝甘露、李阿姨…" autocomplete="off">
+      <input id="globalSearch" type="search" placeholder="搜索一切：过敏、杨枝甘露、李阿姨…" autocomplete="off" aria-label="全局搜索" aria-controls="searchDropdown" aria-expanded="false">
       <div class="search-dropdown" id="searchDropdown" hidden></div>
     </div>
     <div class="toolbar-actions">
@@ -62,7 +63,7 @@
   </header>
 
   <!-- 模块导航 -->
-  <nav class="nav" id="nav">
+  <nav class="nav" id="nav" aria-label="主要导航">
     <span class="nav-heading">浏览</span>
     <a href="#/timeline" data-route="timeline">时间轴</a>
     <a href="#/calendar" data-route="calendar">日历</a>
@@ -94,7 +95,7 @@
   </section>
 
   <!-- 视图容器 -->
-  <main id="view"></main>
+  <main id="view" tabindex="-1"></main>
 
   <!-- 灯箱 -->
   <div class="lightbox" id="lightbox" hidden>

@@ -26,6 +26,14 @@ const $ = (id) => document.getElementById(id);
 /* ---------- 启动 ---------- */
 async function boot() {
   initLightbox();
+  const skipLink = document.querySelector('.skip-link');
+  if (skipLink) skipLink.addEventListener('click', (event) => {
+    event.preventDefault();
+    const main = $('view');
+    if (!main) return;
+    main.focus({ preventScroll: true });
+    main.scrollIntoView({ block: 'start' });
+  });
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
@@ -314,7 +322,13 @@ function router() {
   if (activeView && activeView !== view && typeof activeView.destroy === 'function') activeView.destroy();
   activeView = view;
   $('hero').hidden = view !== timeline;
-  document.querySelectorAll('#nav a').forEach((a) => a.classList.toggle('active', a.dataset.route === (VIEWS[routeName] ? routeName : 'timeline')));
+  const activeRoute = VIEWS[routeName] ? routeName : 'timeline';
+  document.querySelectorAll('#nav a').forEach((a) => {
+    const active = a.dataset.route === activeRoute;
+    a.classList.toggle('active', active);
+    if (active) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  });
   window.scrollTo(0, 0);
   view.render($('view'), params);
 }
@@ -325,6 +339,13 @@ function initGlobalSearch() {
   const input = $('globalSearch');
   const dropdown = $('searchDropdown');
   let timer = null;
+  input.setAttribute('aria-label', '全局搜索');
+  input.setAttribute('aria-controls', 'searchDropdown');
+  const setDropdownOpen = (open) => {
+    dropdown.hidden = !open;
+    input.setAttribute('aria-expanded', String(open));
+  };
+  setDropdownOpen(false);
 
   const MODULE_ROUTE = {
     memories: 'timeline', profile: 'profile', preferences: 'preferences',
@@ -332,7 +353,7 @@ function initGlobalSearch() {
     albums: 'timeline', config: 'timeline'
   };
   const jump = (module, id) => {
-    dropdown.hidden = true;
+    setDropdownOpen(false);
     const route = MODULE_ROUTE[module] || 'timeline';
     if (module === 'config') { openSettings(); return; }
     if (module === 'memories') {
@@ -353,7 +374,7 @@ function initGlobalSearch() {
 
   const doSearch = async () => {
     const q = input.value.trim();
-    if (!q) { dropdown.hidden = true; return; }
+    if (!q) { setDropdownOpen(false); return; }
     try {
       const r = await get('/api/search?q=' + encodeURIComponent(q));
       dropdown.innerHTML = '';
@@ -363,23 +384,23 @@ function initGlobalSearch() {
       for (const g of r.groups) {
         dropdown.append(el('div', { class: 'search-group-title', text: g.name }));
         for (const item of g.items) {
-          dropdown.append(el('div', { class: 'search-item', onclick: () => jump(g.module, item.id) },
+          dropdown.append(el('div', { class: 'search-item', role: 'button', tabindex: '0', onclick: () => jump(g.module, item.id), onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); jump(g.module, item.id); } } },
             el('span', { class: 'si-title', text: item.title }),
             el('span', { class: 'si-sub', text: item.subtitle })
           ));
         }
       }
-      dropdown.hidden = false;
-    } catch (e) { dropdown.hidden = true; }
+      setDropdownOpen(true);
+    } catch (e) { setDropdownOpen(false); }
   };
 
   input.addEventListener('input', () => {
     clearTimeout(timer);
     timer = setTimeout(doSearch, 250);
   });
-  input.addEventListener('keydown', (e) => { if (e.key === 'Escape') { dropdown.hidden = true; input.blur(); } });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Escape') { setDropdownOpen(false); input.blur(); } });
   document.addEventListener('click', (e) => {
-    if (!e.target.closest('.global-search')) dropdown.hidden = true;
+    if (!e.target.closest('.global-search')) setDropdownOpen(false);
   });
 }
 

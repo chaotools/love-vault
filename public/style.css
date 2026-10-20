@@ -9,7 +9,7 @@
   --blush: #fff0f3;
   --ink: #2c2024;
   --ink-light: #5a4a4e;
-  --muted: #9e8a90;
+  --muted: #7f6a70;
   --border: #f0e4e8;
   --card: #ffffff;
   --green: #6b9e78;
@@ -1211,4 +1211,66 @@ body::before { background: var(--bg); }
   .wishes-tabs { display: flex; padding: 8px; }
   .wishes-tabs .seg { width: 100%; }
   .wishes-tabs .seg button { flex: 1 1 0; padding-left: 8px; padding-right: 8px; }
+}
+/* ===== 可访问性与移动端打磨 ===== */
+.skip-link {
+  position: fixed; top: 10px; left: 10px; z-index: 500;
+  transform: translateY(-180%);
+  background: var(--ink); color: var(--bg);
+  padding: 10px 16px; border-radius: 10px; font-size: 13px;
+  text-decoration: none; box-shadow: var(--shadow-lg);
+}
+.skip-link:focus { transform: translateY(0); }
+
+:where(a, button, [role="button"], input, select, textarea):focus-visible {
+  outline: 3px solid var(--rose-deep);
+  outline-offset: 2px;
+}
+#view:focus { outline: none; }
+
+.modal-card { position: relative; }
+.modal-card h2 { padding-right: 36px; }
+.modal-close {
+  position: absolute; top: 12px; right: 12px;
+  width: 36px; height: 36px; border: none; border-radius: 10px;
+  background: transparent; color: var(--muted); font-size: 24px; line-height: 1;
+  display: grid; place-items: center; cursor: pointer;
+}
+.modal-close:hover { background: var(--rose-soft); color: var(--rose-dark); }
+
+.search-item[role="button"] { cursor: pointer; }
+.search-item:focus-visible,
+.search-item[role="button"]:focus {
+  background: var(--blush);
+  outline: 2px solid var(--rose-deep);
+  outline-offset: -2px;
+}
+
+@media (max-width: 640px) {
+  :root { --nav-h: 84px; }
+  .nav {
+    height: var(--nav-h);
+    flex-wrap: wrap;
+    align-content: center;
+    justify-content: center;
+    gap: 2px 4px;
+    padding: 5px 10px;
+    overflow: visible;
+  }
+  .nav a {
+    font-size: 12px;
+    padding: 5px 10px;
+    min-height: 30px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .toolbar { gap: 8px; }
+  .icon-btn { width: 38px; height: 38px; }
+  .modal-card { padding: 24px 20px 20px; }
+  .modal-close { top: 10px; right: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hearts { display: none; }
+  .modal, .modal-card, .toast { animation: none !important; }
 }
