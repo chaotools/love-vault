@@ -1,6 +1,8 @@
 // 应用主控：启动、路由、全局搜索、随手记、设置、登录、首屏
 import { el, get, post, toast, store, openModal, field, input, select, fmtDate, initLightbox, pad, subjectLabel, quickWishSource } from './core.js';
 import { lunarDateText, nextOccurrence, daysUntil } from './lunar.js';
+import { shouldStartWebLogin, authScopeFromStatus } from './auth-state.mjs';
+import { initializeChatHistoryStorage } from './chat-history.mjs';
 import * as timeline from './views/timeline.js';
 import * as profile from './views/profile.js';
 import * as preferences from './views/preferences.js';
@@ -17,6 +19,7 @@ const VIEWS = {
 let activeView = null;
 let routerReady = false;
 let lastSubjectLabel = 'TA';
+let requestLogin = () => {};
 
 const $ = (id) => document.getElementById(id);
 
@@ -32,10 +35,26 @@ async function boot() {
   initReminders();
   spawnHearts();
 
-  store.on('needLogin', (v) => { $('loginOverlay').hidden = !v; });
+  store.on('needLogin', (v) => {
+    $('loginOverlay').hidden = !v;
+    if (v) requestLogin();
+  });
+
+  // 先确认现有会话，再决定是否申请二维码；已登录用户不应每次刷新都创建登录挑战。
   let auth;
-  try { auth = await get('/api/auth/status'); } catch (e) { auth = { enabled: false }; }
-  if (!auth.authenticated) $('loginOverlay').hidden = false;
+  try {
+    auth = await get('/api/auth/status');
+  } catch (e) {
+    auth = { enabled: true, authenticated: false, scope: null };
+  }
+  store.set('authScope', authScopeFromStatus(auth));
+  if (auth.authenticated) {
+    initializeChatHistoryStorage(localStorage, store.data.authScope);
+    $('loginOverlay').hidden = true;
+  } else {
+    $('loginOverlay').hidden = false;
+    if (shouldStartWebLogin(auth)) requestLogin();
+  }
 
   try {
     store.set('config', await get('/api/config'));
@@ -152,7 +171,10 @@ async function renderBanners() {
 /* ---------- 登录 ---------- */
 function initLogin() {
   let poll = null;
-  const begin = async () => {
+  let active = false;
+  requestLogin = async () => {
+    if (active) return;
+    active = true;
     try {
       const login = await post('/api/auth/web-login/start', {});
       $('loginQr').src = login.qr;
@@ -161,18 +183,25 @@ function initLogin() {
       poll = setInterval(async () => {
         try {
           const status = await post('/api/auth/web-login/status', { id: login.id, secret: login.secret });
-          if (status.status === 'expired') { clearInterval(poll); $('loginErr').hidden = false; return; }
+          if (status.status === 'expired') {
+            clearInterval(poll);
+            poll = null;
+            active = false;
+            $('loginErr').hidden = false;
+            return;
+          }
           if (status.status !== 'claimed' || !status.ticket) return;
           clearInterval(poll);
+          poll = null;
           await post('/api/auth/web-exchange', { ticket: status.ticket });
           location.reload();
         } catch { /* 下一轮轮询重试 */ }
       }, 1800);
     } catch (e) {
+      active = false;
       $('loginErr').hidden = false;
     }
   };
-  begin();
 }
 
 /* ---------- 深色模式 ---------- */

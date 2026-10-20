@@ -1,5 +1,6 @@
 // AI 问答：跟"最懂你们的大脑"聊天
 import { el, get, post, toast, store, subjectLabel } from '../core.js';
+import { loadChatHistory, saveChatHistory, clearChatHistory } from '../chat-history.mjs';
 
 const suggestionsFor = (subject) => [
   `${subject}对什么过敏？`,
@@ -9,14 +10,13 @@ const suggestionsFor = (subject) => [
   `${subject}最近随口说过想要什么？`,
   '推荐一个这周末的约会'
 ];
-const HISTORY_KEY = 'vault_chat_history';
-
 let chat = [];
 let sending = false;
 
 export async function render(container) {
   container.innerHTML = '';
   const subject = subjectLabel();
+  const chatScope = store.data.authScope || 'anonymous';
   const ai = store.data.ai || await get('/api/ask/status').catch(() => null);
   if (!ai || !ai.configured) {
     container.append(el('div', { class: 'page' },
@@ -26,7 +26,7 @@ export async function render(container) {
     return;
   }
 
-  chat = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+  chat = loadChatHistory(localStorage, chatScope);
 
   const list = el('div', { class: 'chat-list' });
   const input = el('input', { type: 'text', placeholder: `问点什么… 比如：${subject}的鞋码是多少？` });
@@ -71,7 +71,7 @@ export async function render(container) {
     } catch (e) {
       chat.push({ role: 'assistant', content: '出错了：' + e.message, error: true });
     }
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(chat.slice(-100)));
+    saveChatHistory(localStorage, chatScope, chat);
     thinking.remove();
     sending = false;
     sendBtn.disabled = false;
@@ -88,7 +88,7 @@ export async function render(container) {
         class: 'ghost-btn', style: 'padding:5px 14px;font-size:12px', text: '清空对话', onclick: () => {
           if (!confirm('清空聊天记录？')) return;
           chat = [];
-          localStorage.removeItem(HISTORY_KEY);
+          clearChatHistory(localStorage, chatScope);
           renderList();
         }
       }) : null),

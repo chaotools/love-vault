@@ -462,6 +462,7 @@ function editPerson(p) {
   const md = openModal({
     title: p ? '编辑 ' + p.name : '加一个人',
     content: el('div', null,
+      field('称呼', name),
       field(`${subjectLabel()} 对当前人物的关系`, relation), field('分组', group),
       field('生日', birthday), lunarRow, field('相识', howMet), field('备注', notes),
       el('div', { class: 'field' }, el('label', { text: '当前人物与目标人物的关系（默认单向，可选双向）' }), relationBox, relAddRow)),

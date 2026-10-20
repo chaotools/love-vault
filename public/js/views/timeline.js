@@ -1,6 +1,7 @@
 // 时间轴视图：照片 + 视频 + 文字大事记 按月混排
 import { el, get, post, patch, del, toast, openModal, openLightbox, field, input, textarea, select, fmtDate, fmtDay, fmtDuration, toLocalInput, emptyState, mediaPreview } from '../core.js';
 import { singleFlight } from '../single-flight.mjs';
+import { sortTimelineItems, groupTimelineByMonth } from '../timeline-order.mjs';
 
 let memories = [];
 let events = [];
@@ -139,7 +140,7 @@ function buildList() {
     if (filter.year !== 'all' && String(new Date(it.date).getFullYear()) !== filter.year) return false;
     return true;
   });
-  shown.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  shown = sortTimelineItems(shown);
 
   if (!shown.length) {
     listEl.append(emptyState('🕊️',
@@ -149,17 +150,9 @@ function buildList() {
     return;
   }
 
-  // 按月分组
-  const groups = new Map();
-  for (const it of shown) {
-    const d = new Date(it.date);
-    const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
-    if (!groups.has(key)) groups.set(key, { y: d.getFullYear(), mo: d.getMonth() + 1, items: [] });
-    groups.get(key).items.push(it);
-  }
+  // 按月分组。分组内部保持按实际时间倒序，分组之间按年月数值排序。
   let cardIdx = 0;
-  for (const key of [...groups.keys()].sort((a, b) => b.localeCompare(a))) {
-    const g = groups.get(key);
+  for (const g of groupTimelineByMonth(shown)) {
     const nP = g.items.filter((i) => i.kind === 'media' && i.m.type === 'photo').length;
     const nV = g.items.filter((i) => i.kind === 'media' && i.m.type === 'video').length;
     const nE = g.items.filter((i) => i.kind === 'event').length;
@@ -172,7 +165,7 @@ function buildList() {
     }
     listEl.append(el('div', { class: 'month-group' },
       el('div', { class: 'month-head' },
-        el('div', { class: 'month-title', text: `${g.y}年${g.mo}月` }),
+        el('div', { class: 'month-title', text: g.label }),
         el('div', { class: 'month-count', text: txt })),
       masonry));
   }

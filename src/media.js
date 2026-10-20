@@ -4,6 +4,7 @@ const sharp = require('sharp');
 const { execFile } = require('child_process');
 const fsp = require('fs/promises');
 const path = require('path');
+const { parseDateValue } = require('./media-date');
 
 let MEDIA_DIR = null;
 let THUMB_DIR = null;
@@ -31,14 +32,6 @@ function execFileP(cmd, args, opts = {}) {
 }
 
 const extOf = (name) => path.extname(name).toLowerCase().replace('.', '');
-
-function parseDateValue(v) {
-  if (!v) return null;
-  let s = String(v).trim();
-  s = s.replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? null : d.toISOString();
-}
 
 // 轻量 EXIF 解析：从 sharp 读到的 exif buffer 里提取拍摄时间
 function readExifDate(exifBuf) {

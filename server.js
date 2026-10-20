@@ -1,5 +1,5 @@
 // 爱人记忆库 · Love Vault
-// 环境变量：PORT(默认3000) / HOST(默认0.0.0.0，服务器可用) / DATA_DIR(默认./data)
+// 环境变量：PORT(默认3000) / HOST(默认127.0.0.1) / DATA_DIR(默认./data)
 // 反向代理 HTTPS：TRUST_PROXY=1（让安全 Cookie 识别 X-Forwarded-Proto）
 // AI 覆盖：AI_BASE_URL / AI_API_KEY / AI_MODEL
 // 多用户模式：WEB_SESSION_SECRET / MOBILE_SERVICE_TOKEN（均未配置时退回本地单用户模式，数据用 data/ 根目录）
@@ -22,10 +22,11 @@ const { computeReminders } = require('./src/reminders');
 const { UserDataManager, buildVault, loadVault, migrateLegacyTo } = require('./src/user-data');
 const { migrateStoredApiKeys } = require('./src/secrets');
 const { rateLimit } = require('./src/rate-limit');
+const { resolveHost, shouldWarnUnauthExposure } = require('./src/runtime-config');
 
 const ROOT = __dirname;
 const PORT = parseInt(process.env.PORT || '3000', 10);
-const HOST = process.env.HOST || '0.0.0.0';
+const HOST = resolveHost(process.env.HOST);
 const DATA_DIR = path.resolve(ROOT, process.env.DATA_DIR || 'data');
 
 const PUBLIC_DIR = path.join(ROOT, 'public');
@@ -131,6 +132,10 @@ function listen(port) {
     console.log('  本机访问:  http://localhost:' + port);
     if (HOST === '0.0.0.0') {
       console.log('  局域网/服务器: 用本机 IP 访问同一端口（手机同 WiFi 可打开）');
+    }
+    if (shouldWarnUnauthExposure(HOST, auth.authConfigured())) {
+      console.warn('  ⚠️  当前为无认证本地模式，却监听在 ' + HOST + '；同一网络内的人都能读写全部数据。');
+      console.warn('      如非必要请设置 HOST=127.0.0.1（默认值）。');
     }
     console.log('  数据目录:  ' + DATA_DIR + '  （复制此目录 = 完整备份）\n');
     if (process.env.NODE_ENV !== 'production') openBrowser('http://localhost:' + port);
