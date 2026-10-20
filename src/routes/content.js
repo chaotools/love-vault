@@ -221,13 +221,22 @@ function profileRouter(store) {
 // 上传白名单：只接收浏览器可直接展示/转码的媒体格式（svg 可携带脚本，明确拒绝）
 const IMAGE_UPLOAD_EXT = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif']);
 const ALLOWED_UPLOAD_EXT = new Set([...IMAGE_UPLOAD_EXT, ...media.VIDEO_EXT]);
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
-const MAX_VIDEO_SIZE = 200 * 1024 * 1024;
+const MAX_IMAGE_SIZE = 50 * 1024 * 1024;
+const MAX_VIDEO_SIZE = 500 * 1024 * 1024;
 const MAX_UPLOAD_FILES = 10;
-const MAX_UPLOAD_BATCH_SIZE = 300 * 1024 * 1024;
+const MAX_UPLOAD_BATCH_SIZE = 1024 * 1024 * 1024;
+const MAX_UPLOAD_REQUEST_SIZE = MAX_UPLOAD_BATCH_SIZE + 16 * 1024 * 1024;
 
 const uploadError = (message, status = 400) => Object.assign(new Error(message), { status });
 const kindForExt = (ext) => IMAGE_UPLOAD_EXT.has(ext) ? 'image' : (media.VIDEO_EXT.has(ext) ? 'video' : null);
+
+function rejectOversizedUploadRequest(req, res, next) {
+  const contentLength = Number(req.headers && req.headers['content-length']);
+  if (Number.isFinite(contentLength) && contentLength > MAX_UPLOAD_REQUEST_SIZE) {
+    return res.status(413).json({ error: '单次上传总大小不能超过 1 GB' });
+  }
+  next();
+}
 
 function mimeMatchesExt(mime, ext) {
   if (!mime || mime === 'application/octet-stream') return true;
@@ -294,7 +303,7 @@ function memoriesRouter(collection) {
     res.json(await Promise.all(items.map((m) => publicMem(req, m))));
   });
 
-  r.post('/upload', rateLimit({ windowMs: 10 * 60_000, max: 6, name: '上传' }), upload.array('files', MAX_UPLOAD_FILES), async (req, res) => {
+  r.post('/upload', rateLimit({ windowMs: 10 * 60_000, max: 6, name: '上传' }), rejectOversizedUploadRequest, upload.array('files', MAX_UPLOAD_FILES), async (req, res) => {
     const files = req.files || [];
     const artifacts = new Set(files.map((file) => file.path));
     const removeArtifacts = async () => {
@@ -304,7 +313,7 @@ function memoriesRouter(collection) {
     try {
       if (!files.length) throw uploadError('请选择至少一个文件');
       if (files.reduce((total, file) => total + file.size, 0) > MAX_UPLOAD_BATCH_SIZE) {
-        throw uploadError('单次上传总大小不能超过 300 MB', 413);
+        throw uploadError('单次上传总大小不能超过 1 GB', 413);
       }
       // 在处理任何文件前验证所有手动日期，避免日期错误导致部分上传。
       takenAts = uploadTakenAts(req.body, files.length);
@@ -412,5 +421,6 @@ async function ensureIndex(collection, mediaDir, thumbDir) {
 module.exports = {
   preferencesRouter, peopleRouter, eventsRouter, wishesRouter, giftsRouter, albumsRouter,
   profileRouter, memoriesRouter, ensureIndex, PROFILE_DEFAULT,
-  PREF_POLARITY, PREF_CATEGORY, PEOPLE_GROUP, EVENT_TYPE, WISH_STATUS, WISH_PRIORITY, GIFT_DIRECTION
+  PREF_POLARITY, PREF_CATEGORY, PEOPLE_GROUP, EVENT_TYPE, WISH_STATUS, WISH_PRIORITY, GIFT_DIRECTION,
+  MAX_IMAGE_SIZE, MAX_VIDEO_SIZE, MAX_UPLOAD_FILES, MAX_UPLOAD_BATCH_SIZE, MAX_UPLOAD_REQUEST_SIZE, rejectOversizedUploadRequest
 };
