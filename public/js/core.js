@@ -1,5 +1,7 @@
-// 前端工具核心：DOM 构建 / API / 弹窗 / 灯箱 / 轻量状态总线
+﻿// 前端工具核心：DOM 构建 / API / 弹窗 / 灯箱 / 轻量状态总线
 import { subjectLabelFromConfig, quickWishSourceFromConfig } from './subject-label.mjs';
+import { applyBooleanProperty } from './dom-properties.mjs';
+
 export function el(tag, attrs = {}, ...children) {
   attrs = attrs || {};
   const node = document.createElement(tag);
@@ -8,6 +10,7 @@ export function el(tag, attrs = {}, ...children) {
     if (k === 'class') node.className = v;
     else if (k === 'text') node.textContent = v;
     else if (k === 'html') node.innerHTML = v; // 仅用于可信内容
+    else if (applyBooleanProperty(node, k, v)) { /* handled */ }
     else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
     else node.setAttribute(k, v);
   }

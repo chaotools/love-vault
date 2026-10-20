@@ -425,7 +425,6 @@ export class RelationGraph {
       this.dragged = node;
       this.dragStart = point;
       this.dragMoved = false;
-      node.fixed = true;
       this.canvas.style.cursor = 'grabbing';
     } else {
       this.lastNodeClick = null;
@@ -445,7 +444,10 @@ export class RelationGraph {
   _onPointerMove(e) {
     const point = this._toCanvasPos(e);
     if (this.dragged) {
-      if (Math.hypot(point.x - this.dragStart.x, point.y - this.dragStart.y) > 3) this.dragMoved = true;
+      if (Math.hypot(point.x - this.dragStart.x, point.y - this.dragStart.y) > 3) {
+        this.dragMoved = true;
+        this.dragged.fixed = true;
+      }
       const world = this._screenToWorld(point);
       this.dragged.x = world.x;
       this.dragged.y = world.y;

@@ -144,8 +144,10 @@ function editEvent(e) {
       { el: el('button', { class: 'ghost-btn', text: '取消', onclick: () => md.close() }) },
       { el: el('button', { class: 'primary-btn', text: '保存', onclick: async () => {
         if (!title.value.trim()) { toast('标题不能为空', 'err'); return; }
+        const parsedDate = new Date(date.value);
+        if (!date.value || Number.isNaN(parsedDate.getTime())) { toast('时间无效', 'err'); return; }
         const body = {
-          date: new Date(date.value).toISOString(), title: title.value.trim(),
+          date: parsedDate.toISOString(), title: title.value.trim(),
           type: type.value, location: location.value.trim(), description: desc.value.trim(),
           mediaIds: [...selected]
         };
