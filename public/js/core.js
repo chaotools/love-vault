@@ -1,6 +1,7 @@
-﻿// 前端工具核心：DOM 构建 / API / 弹窗 / 灯箱 / 轻量状态总线
+// 前端工具核心：DOM 构建 / API / 弹窗 / 灯箱 / 轻量状态总线
 import { subjectLabelFromConfig, quickWishSourceFromConfig } from './subject-label.mjs';
 import { applyBooleanProperty } from './dom-properties.mjs';
+import { FOCUSABLE_SELECTOR, nextFocusIndex } from './focus-trap.mjs';
 
 export function el(tag, attrs = {}, ...children) {
   attrs = attrs || {};
@@ -117,7 +118,7 @@ let toastTimer = null;
 export function toast(msg, type = 'ok') {
   let box = document.getElementById('toast');
   if (!box) {
-    box = el('div', { id: 'toast' });
+    box = el('div', { id: 'toast', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' });
     document.body.append(box);
   }
   box.textContent = msg;
@@ -138,25 +139,75 @@ function unlockScroll() {
   if (scrollLocks === 0) document.body.style.overflow = '';
 }
 
+let modalSequence = 0;
+
+function focusableIn(card) {
+  return [...card.querySelectorAll(FOCUSABLE_SELECTOR)]
+    .filter((node) => node.tabIndex !== -1 && !node.hidden && node.getAttribute('aria-hidden') !== 'true' && node.getClientRects().length > 0);
+}
+
 export function openModal({ title, content, buttons = [], wide = false, onClose }) {
-  const card = el('div', { class: 'modal-card' + (wide ? ' wide' : '') },
-    el('h2', { text: title }),
+  const titleId = 'modal-title-' + (++modalSequence);
+  const previousFocus = document.activeElement;
+  let closed = false;
+  let close = () => {};
+
+  const closeButton = el('button', {
+    type: 'button', class: 'modal-close', 'aria-label': '关闭弹窗', text: '×', onclick: () => close()
+  });
+  const card = el('div', {
+    class: 'modal-card' + (wide ? ' wide' : ''),
+    role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId
+  },
+    closeButton,
+    el('h2', { id: titleId, text: title }),
     content
   );
   const foot = buttons.length ? el('div', { class: 'modal-foot' }, buttons.map((b) => b.el)) : null;
   if (foot) card.append(foot);
   const overlay = el('div', { class: 'modal' }, card);
-  let closed = false;
-  const close = () => {
+
+  close = () => {
     if (closed) return;
     closed = true;
+    overlay.removeEventListener('keydown', onKeyDown);
     overlay.remove();
     unlockScroll();
+    if (previousFocus && typeof previousFocus.focus === 'function' && previousFocus.isConnected) {
+      previousFocus.focus({ preventScroll: true });
+    }
     if (onClose) onClose();
   };
+
+  const onKeyDown = (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusables = focusableIn(card);
+    if (!focusables.length) {
+      event.preventDefault();
+      card.focus({ preventScroll: true });
+      return;
+    }
+    const currentIndex = focusables.indexOf(document.activeElement);
+    const nextIndex = nextFocusIndex(focusables.length, currentIndex, event.shiftKey);
+    event.preventDefault();
+    focusables[nextIndex].focus();
+  };
+
   overlay.addEventListener('click', (e) => { if (e.target === overlay && !buttons.some((b) => b.sticky)) close(); });
+  overlay.addEventListener('keydown', onKeyDown);
   lockScroll();
   document.body.append(overlay);
+  requestAnimationFrame(() => {
+    if (closed) return;
+    const first = focusableIn(card).find((node) => node !== closeButton) || closeButton;
+    if (first && typeof first.focus === 'function') first.focus({ preventScroll: true });
+  });
   return { close, card, overlay };
 }
 
