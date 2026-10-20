@@ -334,6 +334,7 @@ function initGlobalSearch() {
   const jump = (module, id) => {
     dropdown.hidden = true;
     const route = MODULE_ROUTE[module] || 'timeline';
+    if (module === 'config') { openSettings(); return; }
     if (module === 'memories') {
       location.hash = '#/timeline';
       setTimeout(() => window.dispatchEvent(new CustomEvent('vault:focus-media', { detail: id })), 80);

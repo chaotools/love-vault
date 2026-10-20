@@ -156,6 +156,7 @@ function renderGraph() {
       selectedRelationId = null;
       selectedPersonId = node && node.id;
       showNodeDetails(node && node.id);
+      updateRelationListSelection();
     },
     onEdgeSelect: (edge) => {
       selectedRelationId = edge && edge.id;

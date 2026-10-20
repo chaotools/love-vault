@@ -72,9 +72,7 @@ export async function render(container, params) {
   container.innerHTML = '';
   try { profile = await get('/api/profile'); } catch (e) { container.append(emptyState('🔒', '请先登录')); return; }
   build();
-  if (params && params.focus === 'story') {
-    setTimeout(() => { const b = document.getElementById('storyBox'); if (b) b.scrollIntoView({ behavior: 'smooth' }); }, 100);
-  }
+  if (params && params.focus) setTimeout(() => focusProfile(params.focus), 120);
 }
 
 function build() {
@@ -218,7 +216,7 @@ function periodCard() {
       el('div', { class: 'period-stat' }, el('span', { class: 'k', text: '预计下次' }), el('span', { class: 'v', text: next ? `${next.getMonth() + 1}月${next.getDate()}日` : '—' }))),
     el('div', { style: 'display:flex;gap:8px;margin-top:14px;flex-wrap:wrap' },
       dInput, el('button', { class: 'small-btn', text: '记一次', onclick: record }),
-      cycles.length > 1 ? el('button', {
+      cycles.length > 0 ? el('button', {
         class: 'ghost-btn danger', style: 'padding:6px 14px;font-size:12px', text: '清空记录', onclick: async () => {
           if (!confirm('清空全部生理期记录？')) return;
           p.lastCycles = [];
@@ -292,3 +290,23 @@ function storyEditor() {
   });
   return el('div', null, ta, el('div', { style: 'margin-top:12px;text-align:right' }, saveBtn));
 }
+function focusProfile(id) {
+  if (!profile || !id) return;
+  if (id === 'story') {
+    const box = document.getElementById('storyBox');
+    if (box) box.scrollIntoView({ behavior: 'smooth' });
+    return;
+  }
+  if (HEALTH_FIELDS.some(([key]) => key === id)) {
+    editHealth();
+    return;
+  }
+  if (BASIC_FIELDS.some(([key]) => key === id)) {
+    editBasics();
+    return;
+  }
+  const custom = (profile.customFields || []).find((field) => field.id === id);
+  if (custom) editCustom(custom);
+}
+
+window.addEventListener('vault:focus-profile', (e) => focusProfile(e.detail));

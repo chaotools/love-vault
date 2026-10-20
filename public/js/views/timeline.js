@@ -268,6 +268,8 @@ function manageAlbums() {
           if (!nameInput.value.trim()) { toast('相册名不能为空', 'err'); return; }
           await patch('/api/albums/' + a.id, { name: nameInput.value.trim() });
           albums = await get('/api/albums');
+          renderList();
+          renderAlbumChipsSafe();
           toast('已改名');
         } }),
         el('button', { class: 'cf-del', title: '删除相册（照片不删除）', text: '✕', onclick: async () => {

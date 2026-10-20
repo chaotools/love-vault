@@ -38,11 +38,13 @@ export async function render(container, params) {
   } catch (e) { container.append(emptyState('🔒', '请先登录')); return; }
   wishes.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
   gifts.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  if (params && params.focus) tab = 'wish';
+  const focusWish = params && wishes.find((w) => w.id === params.focus);
+  const focusGift = params && gifts.find((g) => g.id === params.focus);
+  if (params && params.focus) tab = focusGift ? 'gift' : 'wish';
   build();
   if (params && params.focus) {
-    const it = wishes.find((w) => w.id === params.focus);
-    if (it) setTimeout(() => editWish(it), 150);
+    if (focusGift) setTimeout(() => editGift(focusGift), 150);
+    else if (focusWish) setTimeout(() => editWish(focusWish), 150);
   }
 }
 
@@ -50,11 +52,14 @@ function build() {
   viewEl.innerHTML = '';
   const page = el('div', { class: 'page' });
 
+  const primaryBtn = el('button', {
+    class: 'primary-btn', text: primaryActionLabel(), onclick: () => runPrimaryAction()
+  });
   page.append(el('div', { class: 'page-head' },
     el('div', null,
       el('div', { class: 'page-title', text: '🎁 愿望 & 礼物' }),
       el('div', { class: 'page-desc', text: `${subjectLabel()}随口提过想要的，都记下来——送礼不重样` })),
-    el('button', { class: 'primary-btn', text: '＋ ' + (tab === 'gift' ? '记一件礼物' : '记一个愿望'), onclick: () => tab === 'gift' ? editGift(null) : editWish(null) })));
+    primaryBtn));
 
   const seg = el('div', { class: 'seg' },
     ...[['wish', '💝 愿望清单'], ['gift', '🎀 礼物记录'], ['draw', '🃏 约会灵感']].map(([v, t]) =>
@@ -63,7 +68,7 @@ function build() {
         seg.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x.dataset.t === v));
         buildBody();
         // 头部按钮的点击处理器在构造时绑定为读取当前 tab，这里只更新文案
-        page.querySelector('.primary-btn').textContent = '＋ ' + (v === 'gift' ? '记一件礼物' : v === 'wish' ? '记一个愿望' : '抽三张');
+        primaryBtn.textContent = primaryActionLabel(v);
       } })));
   page.append(el('div', { class: 'view-filter wishes-tabs' }, seg));
 
@@ -71,6 +76,19 @@ function build() {
   page.append(body);
   viewEl.append(page);
   buildBody();
+}
+
+function primaryActionLabel(value = tab) {
+  if (value === 'gift') return '＋ 记一件礼物';
+  if (value === 'wish') return '＋ 记一个愿望';
+  return '🎲 抽三张';
+}
+
+function runPrimaryAction() {
+  if (tab === 'gift') return editGift(null);
+  if (tab === 'wish') return editWish(null);
+  const drawButton = document.querySelector('.draw-zone .primary-btn');
+  if (drawButton) drawButton.click();
 }
 
 function buildBody() {
@@ -268,5 +286,12 @@ window.addEventListener('vault:focus-wishes', (e) => {
   if (it) {
     if (tab !== 'wish') { tab = 'wish'; build(); }
     editWish(it);
+  }
+});
+window.addEventListener('vault:focus-gifts', (e) => {
+  const it = gifts.find((g) => g.id === e.detail);
+  if (it) {
+    if (tab !== 'gift') { tab = 'gift'; build(); }
+    editGift(it);
   }
 });
