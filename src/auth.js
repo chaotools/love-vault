@@ -29,6 +29,12 @@ function mintSession(userId) {
   const payload = Buffer.from(JSON.stringify({ userId, exp: Date.now() + 30 * 86400_000 })).toString('base64url');
   return payload + '.' + sign(payload);
 }
+// 只把一个不可反推的稳定标识交给浏览器，用于隔离 localStorage 等前端缓存。
+function sessionScope(userId) {
+  if (userId === LOCAL_USER_ID) return 'local';
+  if (!USER_ID.test(userId || '') || !secret()) return null;
+  return crypto.createHmac('sha256', secret()).update('session-scope:' + userId).digest('base64url').slice(0, 22);
+}
 function readSession(req) {
   if (!secret()) return null;
   const raw = ((req.headers && req.headers.cookie) || '').split(/;\s*/).find((c) => c.startsWith(COOKIE + '='));
@@ -79,10 +85,15 @@ function router() {
   // 前端每 1.8 秒轮询一次，5 分钟有效期内最多约 167 次，留出网络重试余量。
   const statusLimit = rateLimit({ windowMs: 5 * 60_000, max: 240, name: '登录状态查询', key: byIp });
   const exchangeLimit = rateLimit({ windowMs: 10 * 60_000, max: 15, name: '登录兑换', key: byIp });
-  r.get('/status', (req, res) => res.json({
-    enabled: authConfigured(),
-    authenticated: !authConfigured() || Boolean(readSession(req))
-  }));
+  r.get('/status', (req, res) => {
+    const enabled = authConfigured();
+    const userId = enabled ? readSession(req) : LOCAL_USER_ID;
+    res.json({
+      enabled,
+      authenticated: Boolean(userId),
+      scope: sessionScope(userId)
+    });
+  });
   r.post('/logout', (req, res) => { res.setHeader('Set-Cookie', cookie('', 0)); res.json({ ok: true }); });
   r.post('/web-login/start', startLimit, async (req, res) => {
     const broker = process.env.AUTH_BROKER_URL || '';
@@ -130,4 +141,4 @@ function router() {
   return r;
 }
 
-module.exports = { requireAuth, router, readSession, serviceMatches, authConfigured, csrfProtect, LOCAL_USER_ID, COOKIE, SERVICE_TOKEN_HEADER, USER_HEADER };
+module.exports = { requireAuth, router, readSession, mintSession, sessionScope, serviceMatches, authConfigured, csrfProtect, LOCAL_USER_ID, COOKIE, SERVICE_TOKEN_HEADER, USER_HEADER };

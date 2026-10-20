@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
-const { requireAuth, router } = require('../src/auth');
+const { requireAuth, router, mintSession } = require('../src/auth');
 
 function run(middleware, headers = {}) {
   let nextCalled = false;
@@ -67,5 +67,40 @@ test('web login status forwards its secret in a JSON POST body, never in the bro
     global.fetch = originalFetch;
     if (previousBroker === undefined) delete process.env.AUTH_BROKER_URL;
     else process.env.AUTH_BROKER_URL = previousBroker;
+  }
+});
+test('auth status exposes an opaque, stable per-user cache scope', async () => {
+  const previous = process.env.WEB_SESSION_SECRET;
+  process.env.WEB_SESSION_SECRET = 'scope-test-secret';
+  const app = express();
+  app.use('/api/auth', router());
+  const server = await new Promise((resolve) => {
+    const value = app.listen(0, () => resolve(value));
+  });
+  const userA = '3aa6dbfc-a08c-4f27-9b13-96ee1891cb7c';
+  const userB = '4bb7ecfd-b19d-4a38-8c24-a7ff2902dc8d';
+  const statusFor = async (userId) => {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/api/auth/status`, {
+      headers: { Cookie: `vault_session=${encodeURIComponent(mintSession(userId))}` }
+    });
+    assert.equal(response.status, 200);
+    return response.json();
+  };
+
+  try {
+    const first = await statusFor(userA);
+    const again = await statusFor(userA);
+    const other = await statusFor(userB);
+    assert.equal(first.enabled, true);
+    assert.equal(first.authenticated, true);
+    assert.equal(typeof first.scope, 'string');
+    assert.ok(first.scope.length > 0);
+    assert.ok(!first.scope.includes(userA));
+    assert.equal(first.scope, again.scope);
+    assert.notEqual(first.scope, other.scope);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    if (previous === undefined) delete process.env.WEB_SESSION_SECRET;
+    else process.env.WEB_SESSION_SECRET = previous;
   }
 });
