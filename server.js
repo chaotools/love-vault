@@ -102,7 +102,7 @@ app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'inde
 app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
   console.error('请求处理失败:', err.message);
-  if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: '单个文件不能超过 200 MB' });
+  if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: '单个文件不能超过 ' + Math.round(content.MAX_VIDEO_SIZE / 1024 / 1024) + ' MB' });
   res.status(err.status || 500).json({ error: err.message });
 });
 

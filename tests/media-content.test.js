@@ -138,10 +138,32 @@ test('上传校验拒绝 MIME/扩展名不符、伪造图片和超限照片，�
       assert.deepEqual(await fsp.readdir(vault.thumbDir), []);
 
       const tooLarge = new FormData();
-      tooLarge.append('files', new Blob([Buffer.alloc(10 * 1024 * 1024 + 1)], { type: 'image/jpeg' }), 'large.jpg');
+      tooLarge.append('files', new Blob([Buffer.alloc(50 * 1024 * 1024 + 1)], { type: 'image/jpeg' }), 'large.jpg');
       assert.equal((await fetch(origin + '/upload', { method: 'POST', body: tooLarge })).status, 413);
     });
   } finally {
     await fsp.rm(root, { recursive: true, force: true });
   }
+});
+test('媒体上传限制与请求体前置守卫一致', () => {
+  assert.equal(content.MAX_IMAGE_SIZE, 50 * 1024 * 1024);
+  assert.equal(content.MAX_VIDEO_SIZE, 500 * 1024 * 1024);
+  assert.equal(content.MAX_UPLOAD_BATCH_SIZE, 1024 * 1024 * 1024);
+  assert.equal(content.MAX_UPLOAD_REQUEST_SIZE, 1024 * 1024 * 1024 + 16 * 1024 * 1024);
+
+  let statusCode = null;
+  let body = null;
+  let nextCalled = false;
+  const res = {
+    status(code) { statusCode = code; return this; },
+    json(value) { body = value; return this; }
+  };
+  content.rejectOversizedUploadRequest(
+    { headers: { 'content-length': String(content.MAX_UPLOAD_REQUEST_SIZE + 1) } },
+    res,
+    () => { nextCalled = true; }
+  );
+  assert.equal(nextCalled, false);
+  assert.equal(statusCode, 413);
+  assert.match(body.error, /1 GB/);
 });

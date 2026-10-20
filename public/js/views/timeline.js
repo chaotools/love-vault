@@ -345,7 +345,7 @@ function openUpload() {
   const dz = el('div', { class: 'dropzone' },
     el('div', { class: 'dz-icon', text: '📷' }),
     el('p', { text: '拖拽照片 / 视频到这里' }),
-    el('p', { class: 'sub', text: '或点击选择文件 · 支持多选 · 可逐张填写实际拍摄时间' }));
+    el('p', { class: 'sub', text: '或点击选择文件 · 照片≤50 MB / 视频≤500 MB · 支持多选 · 可逐张填写实际拍摄时间' }));
   const fi = input({ type: 'file', multiple: true, accept: 'image/*,video/*', hidden: true });
   dz.append(fi);
   const filesEl = el('div', { class: 'upload-files', hidden: true });
