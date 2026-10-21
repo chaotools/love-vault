@@ -94,14 +94,17 @@ function buildList() {
 }
 
 function promiseCheck(e) {
+  const doneText = e.done ? '已兑现' + (e.doneAt ? ' · ' + fmtDate(e.doneAt) : '') : '未兑现';
   const check = el('label', { class: 'promise-check' + (e.done ? ' done' : '') },
     el('span', { class: 'box', text: e.done ? '✓' : '' }),
-    el('span', { class: 'txt', text: e.done ? '已兑现' : '未兑现' }));
+    el('span', { class: 'txt', text: doneText }));
   check.addEventListener('click', async (ev) => {
     ev.stopPropagation();
     const done = !e.done;
-    await patch('/api/events/' + e.id, { done, ...(done ? { doneAt: new Date().toISOString() } : {}) });
+    const doneAt = done ? new Date().toISOString() : null;
+    await patch('/api/events/' + e.id, { done, doneAt });
     e.done = done;
+    e.doneAt = doneAt;
     build();
     toast(done ? '又一个承诺兑现了 🎉' : '已标记为未兑现');
   });

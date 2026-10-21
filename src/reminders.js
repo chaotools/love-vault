@@ -1,6 +1,7 @@
 // 提醒计算：纪念日（公历/农历）、生日（公历/农历）、生理期预测、在一起里程碑
 // 只做纯计算，不做持久化；由路由暴露给前端，前端负责展示与浏览器通知去重。
 const lunar = require('./lunar');
+const { shanghaiMonthKey } = require('./date-resolution');
 
 const DAY = 86400000;
 // 在一起的里程碑日：挑的都是"有说法"的数字
@@ -68,7 +69,7 @@ function computeReminders(data, opts = {}) {
 
   // 生理期预测
   const period = profile.period;
-  if (config.periodEnabled && period && period.enabled !== false && Array.isArray(period.lastCycles) && period.lastCycles.length) {
+  if (config.periodEnabled && period && Array.isArray(period.lastCycles) && period.lastCycles.length) {
     const last = new Date(period.lastCycles.slice().sort().pop());
     if (!isNaN(last.getTime())) {
       const next = new Date(lunar.startOfDay(last).getTime() + (period.avgDays || 28) * DAY);
@@ -130,14 +131,14 @@ function computeReminders(data, opts = {}) {
     cursorDate = new Date(cursorDate.getTime() - DAY);
   }
   // 本月记录条数
-  const thisMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  const thisMonthKey = shanghaiMonthKey(today);
   let monthCount = 0;
   for (const key of activityCollections) {
     const list = data[key] || [];
     for (const item of list) {
       if (item && item.createdAt) {
         const d = new Date(item.createdAt);
-        if (!isNaN(d.getTime()) && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === thisMonthKey) monthCount++;
+        if (!isNaN(d.getTime()) && shanghaiMonthKey(d) === thisMonthKey) monthCount++;
       }
     }
   }

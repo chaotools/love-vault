@@ -131,7 +131,7 @@ function calendarRouter(getData) {
     }
 
     // 5. 生理期预测（若开启且本月有预测日）
-    if (config.periodEnabled && profile.period && profile.period.enabled !== false &&
+    if (config.periodEnabled && profile.period &&
         Array.isArray(profile.period.lastCycles) && profile.period.lastCycles.length) {
       const last = new Date(profile.period.lastCycles.slice().sort().pop());
       if (!isNaN(last.getTime())) {

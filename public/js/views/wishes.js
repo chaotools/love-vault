@@ -138,7 +138,7 @@ function wishTab() {
           el('span', { class: 'wish-priority p-' + (w.priority || '低'), title: '优先级' }),
           el('span', { class: 'wish-status s-' + w.status, text: w.status }),
           w.source ? el('span', { class: 'wish-source', text: '来源：' + w.source }) : null,
-          w.doneAt ? el('span', { class: 'wish-source', text: fmtDate(w.doneAt) + ' 实现' }) : null)));
+          w.status === '已实现' && w.doneAt ? el('span', { class: 'wish-source', text: fmtDate(w.doneAt) + ' 实现' }) : null)));
     }
   };
   renderGrid();
@@ -176,7 +176,12 @@ function editWish(w) {
       { el: el('button', { class: 'ghost-btn', text: '取消', onclick: () => md.close() }) },
       { el: el('button', { class: 'primary-btn', text: '保存', onclick: async () => {
         if (!title.value.trim()) { toast('愿望不能为空', 'err'); return; }
-        const body = { title: title.value.trim(), status: status.value, priority: priority.value, source: source.value.trim(), note: note.value.trim() };
+        const nextStatus = status.value;
+        const body = {
+          title: title.value.trim(), status: nextStatus, priority: priority.value,
+          source: source.value.trim(), note: note.value.trim(),
+          doneAt: nextStatus === '已实现' ? (w && w.status === '已实现' && w.doneAt ? w.doneAt : new Date().toISOString()) : null
+        };
         if (w) {
           const updated = await patch('/api/wishes/' + w.id, body);
           const i = wishes.findIndex((x) => x.id === w.id);
