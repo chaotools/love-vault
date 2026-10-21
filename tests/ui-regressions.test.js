@@ -98,5 +98,5 @@ test('记忆地图路由、地点提示和事件坐标已接线', () => {
   assert.match(events, /geo: selectedGeo/);
   assert.match(map, /loadTencentMap/);
   assert.match(map, /MultiMarker/);
-  assert.match(map, /MultiPolyline/);
+  assert.doesNotMatch(map, /MultiPolyline/);
 });
