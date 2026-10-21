@@ -454,6 +454,7 @@ function initSettings() {
 async function openSettings() {
   const cfg = await get('/api/config');
   const aiStatus = await get('/api/ask/status');
+  const emailStatusInfo = await get('/api/notifications/status').catch(() => null);
   const aiPresetBaseUrls = {};
   const providersResp = await fetch('/js/ai-providers.json').then((r) => r.json()).catch(() => ({}));
 
@@ -543,6 +544,41 @@ async function openSettings() {
     }
   });
 
+  // —— 邮件提醒区 ——
+  const notificationSettings = cfg.notifications || {};
+  const sEmailEnabled = input({ type: 'checkbox', checked: notificationSettings.emailEnabled === true });
+  const sEmailTo = input({ type: 'email', value: notificationSettings.emailTo || '', placeholder: '接收邮箱，多个用逗号分隔' });
+  const sEmailTime = input({ type: 'time', value: notificationSettings.time || '09:00' });
+  const emailStatus = el('div', {
+    class: 'ai-status-line ' + (emailStatusInfo && emailStatusInfo.configured ? 'ok' : 'bad'),
+    text: emailStatusInfo
+      ? (emailStatusInfo.configured ? 'SMTP 已配置 · 发件邮箱：' + emailStatusInfo.sender : 'SMTP 未配置 · 请设置 SMTP_PASS')
+      : '邮件服务状态未知'
+  });
+  const emailSettings = () => ({
+    emailEnabled: sEmailEnabled.checked,
+    emailTo: sEmailTo.value.trim(),
+    time: sEmailTime.value || '09:00'
+  });
+  const saveEmailSettings = async () => {
+    const saved = await post('/api/config', { notifications: emailSettings() });
+    store.set('config', saved);
+    return saved;
+  };
+  const testEmail = el('button', {
+    class: 'ghost-btn', text: '发送测试邮件', onclick: async () => {
+      try {
+        await saveEmailSettings();
+        const result = await post('/api/notifications/test', {});
+        emailStatus.textContent = '✓ 测试邮件已发送到 ' + (Array.isArray(result.to) ? result.to.join(', ') : result.to);
+        emailStatus.className = 'ai-status-line ok';
+      } catch (error) {
+        emailStatus.textContent = '✗ ' + error.message;
+        emailStatus.className = 'ai-status-line bad';
+      }
+    }
+  });
+
   // —— 数据区（导出 / 导入备份） ——
   const exportBtn = el('a', {
     class: 'ghost-btn', href: '/api/transfer/export', download: '', text: '⬇ 导出备份 zip'
@@ -597,6 +633,13 @@ async function openSettings() {
         el('div', { class: 'modal-foot', style: 'justify-content:flex-start;margin-top:4px' }, testAi, aiStatusLine)
       ),
       el('div', { class: 'settings-section' },
+        el('h4', { text: '邮件提醒' }),
+        field('开启每日邮件提醒', sEmailEnabled, '每天按北京时间发送一次摘要'),
+        field('接收邮箱', sEmailTo, '多个邮箱用逗号分隔'),
+        field('发送时间', sEmailTime, '北京时间，例如 09:00'),
+        el('div', { class: 'modal-foot', style: 'justify-content:flex-start;margin-top:4px' }, testEmail, emailStatus)
+      ),
+      el('div', { class: 'settings-section' },
         el('h4', { text: '数据（全部记忆都在 data/ 目录，此处可打包带走）' }),
         el('div', { class: 'data-actions', style: 'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px' }, exportBtn, importBtn, importFile),
         el('div', { style: 'margin-top:8px' }, dataStatus)
@@ -611,7 +654,8 @@ async function openSettings() {
               const body = {
                 title: sTitle.value.trim(), subjectName: sSubjectName.value.trim().slice(0, 30), names: sNames.value.trim(), anniversary: sAnn.value,
                 music: sMusic.value.trim(), periodEnabled: sPeriod.value === 'true',
-                memorialDays: days.filter((d) => d.name && d.date)
+                memorialDays: days.filter((d) => d.name && d.date),
+                notifications: emailSettings()
               };
               if (aiDirty) body.ai = { provider: sProvider.value, baseUrl: sBaseUrl.value.trim(), apiKey: sApiKey.value.trim(), model: sModel.value.trim(), privacy: { health: sAiHealth.checked, period: sAiPeriod.checked } };
               const saved = await post('/api/config', body);

@@ -2,6 +2,7 @@
 const express = require('express');
 const { encryptApiKey, encryptionEnabled } = require('../secrets');
 const { validateUserAiSettingsAsync } = require('../ai');
+const { DEFAULT_NOTIFICATIONS, normalizeNotificationSettings, validateNotificationSettings } = require('../email-notifications');
 
 const DEFAULT_CONFIG = {
   title: '爱人记忆库',
@@ -11,6 +12,7 @@ const DEFAULT_CONFIG = {
   music: '',
   memorialDays: [],          // [{name, date}]
   periodEnabled: false,      // 生理期记录开关（首页提醒用）
+  notifications: { ...DEFAULT_NOTIFICATIONS },
   ai: { provider: 'zhipu', baseUrl: '', apiKey: '', model: '', privacy: { health: false, period: false } },
   auth: undefined            // 历史遗留字段，已无密码功能
 };
@@ -28,6 +30,7 @@ function configRouter(store, save) {
       ...DEFAULT_CONFIG,
       ...safe,
       subjectName: normalizeSubjectName(config.subjectName),
+      notifications: normalizeNotificationSettings(config.notifications || DEFAULT_CONFIG.notifications),
       ai: { ...DEFAULT_CONFIG.ai, ...ai, apiKey: '', hasApiKey: Boolean(ai.apiKey) },
       hasPassword: Boolean(auth)
     };
@@ -47,6 +50,11 @@ function configRouter(store, save) {
     }
     if (typeof b.subjectName === 'string') config.subjectName = normalizeSubjectName(b.subjectName);
     if (typeof b.periodEnabled === 'boolean') config.periodEnabled = b.periodEnabled;
+    if (b.notifications && typeof b.notifications === 'object') {
+      const validation = validateNotificationSettings(b.notifications);
+      if (!validation.ok) return res.status(400).json({ error: validation.error });
+      config.notifications = validation.settings;
+    }
     if (Array.isArray(b.memorialDays)) {
       config.memorialDays = b.memorialDays
         .filter((m) => m && typeof m.name === 'string' && typeof m.date === 'string')

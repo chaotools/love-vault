@@ -23,6 +23,8 @@ const { UserDataManager, buildVault, loadVault, migrateLegacyTo } = require('./s
 const { migrateStoredApiKeys } = require('./src/secrets');
 const { rateLimit } = require('./src/rate-limit');
 const { resolveHost, shouldWarnUnauthExposure } = require('./src/runtime-config');
+const { startEmailScheduler, emailService } = require('./src/email-notifications');
+const { notificationsRouter } = require('./src/routes/notifications');
 
 const ROOT = __dirname;
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -66,6 +68,7 @@ app.use('/api', auth.csrfProtect, auth.requireAuth, attachVault,
   rateLimit({ windowMs: 60_000, max: 60, name: '写入', skip: (req) => ['GET', 'HEAD', 'OPTIONS'].includes(req.method) }));
 
 app.use('/api/config', configRouter((req) => req.vault.config, (req) => req.vault.config.save()));
+app.use('/api/notifications', notificationsRouter((req) => req.vault, emailService));
 app.use('/api/profile', content.profileRouter((req) => req.vault.profile));
 app.use('/api/preferences', content.preferencesRouter((req) => req.vault.preferences));
 app.use('/api/people', content.peopleRouter((req) => req.vault.people));
@@ -116,6 +119,13 @@ async function init() {
   // 本地模式预加载根目录保险库；多用户保险库在首次请求时懒加载
   await loadVault(legacyVault);
   media.init(legacyVault.mediaDir, legacyVault.thumbDir); // 兼容 migrate-old 等旧调用
+  const emailScheduler = startEmailScheduler({
+    dataDir: DATA_DIR,
+    legacyVault,
+    users,
+    localMode: !auth.authConfigured()
+  });
+  emailScheduler.start().catch((error) => console.error('邮件提醒调度启动失败:', error.message));
 }
 
 function openBrowser(url) {

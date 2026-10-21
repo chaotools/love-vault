@@ -13,6 +13,12 @@ services:
       - TRUST_PROXY=1
       - PUBLIC_ORIGIN=${PUBLIC_ORIGIN:-}
       - VAULT_ENC_KEY=${VAULT_ENC_KEY:-}
+      - SMTP_USER=${SMTP_USER:-chaotools2026@163.com}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_HOST=${SMTP_HOST:-smtp.163.com}
+      - SMTP_PORT=${SMTP_PORT:-465}
+      - SMTP_SECURE=${SMTP_SECURE:-true}
+      - SMTP_FROM=${SMTP_FROM:-chaotools2026@163.com}
       # AI 配置也可以在这里用环境变量注入（优先级高于网页设置）
       # - AI_BASE_URL=https://open.bigmodel.cn/api/paas/v4
       # - AI_API_KEY=your-key

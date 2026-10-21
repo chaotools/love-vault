@@ -90,6 +90,11 @@ pm2 save && pm2 startup
 | `LEGACY_USER_ID` | - | 可选。将旧版 `data/` 根目录数据迁移至指定 UUID 用户目录；迁移可恢复且不会覆盖已有文件 |
 | `PUBLIC_ORIGIN` | - | 公网网页地址，例如 `https://love.chaotools.tech`；生产环境用于严格 CSRF Origin 校验 |
 | `VAULT_ENC_KEY` | - | 生产环境必须设置的高熵密钥。网页保存的 AI API Key 会以 AES-256-GCM 加密落盘，启动时自动迁移已有明文配置与 `.bak` 备份；丢失或更换该密钥会使既有 Key 无法使用 |
+| `SMTP_USER` / `SMTP_PASS` | `chaotools2026@163.com` / - | 邮件提醒发件账号与 SMTP 授权码；`SMTP_PASS` 使用邮箱授权码，不是登录密码 |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` | `smtp.163.com` / `465` / `true` | 默认使用 163 SMTP；也可换成其他 SMTP 服务 |
+| `SMTP_FROM` | `SMTP_USER` | 发件人地址，通常与 `SMTP_USER` 相同 |
+
+邮件提醒在服务器端按北京时间定时生成每日摘要并发送；接收邮箱、是否开启和发送时间可在 ⚙ 设置 → 邮件提醒中填写。需要先配置 `SMTP_PASS`（163 邮箱授权码）。
 
 AI 设置支持内置供应商和自定义 OpenAI 兼容接口。服务器多用户模式下，自定义接口必须是 HTTPS 公网域名并使用 443 端口；保存时会解析 DNS，拒绝环回、内网、链路本地、保留和组播地址，实际请求也禁止跟随跳转。这样无需把所有供应商硬编码，同时避免把 Love Vault 变成访问内网的 SSRF 代理。服务器本机的 Ollama、HTTP 接口或其他受信任内网网关，应通过 `AI_BASE_URL`、`AI_API_KEY`、`AI_MODEL` 由管理员统一配置。
 
