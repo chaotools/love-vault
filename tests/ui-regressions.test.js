@@ -50,3 +50,8 @@ test('关系图单击不会冻结节点，拖拽后才固定', () => {
   assert.match(source, /this\.dragMoved = true;\s*this\.dragged\.fixed = true;/);
   assert.match(read('public/js/views/people.js'), /showNodeDetails\(node && node\.id\);\s*updateRelationListSelection\(\);/);
 });
+test('生理期记录入口只由设置里的全局开关控制', () => {
+  const source = read('public/js/views/profile.js');
+  assert.match(source, /store\.data\.config && store\.data\.config\.periodEnabled/);
+  assert.doesNotMatch(source, /profile\.period\.enabled/);
+});

@@ -1,5 +1,5 @@
 // TA的档案：基本信息 / 尺码 / 健康 / 生理期 / 自定义字段 / 我们的故事
-import { el, get, put, toast, openModal, field, input, select, emptyState, subjectLabel } from '../core.js';
+import { el, get, put, toast, openModal, field, input, select, emptyState, store, subjectLabel } from '../core.js';
 
 const BASIC_FIELDS = [
   ['nickname', '昵称'], ['birthday', '生日'], ['zodiac', '星座'], ['bloodType', '血型'],
@@ -95,7 +95,7 @@ function build() {
       el('div', { class: 'v', text: profile.health[k] || '' }))))));
 
   // 生理期（开启才显示）
-  if (profile.period && profile.period.enabled) grid.append(periodCard());
+  if (store.data.config && store.data.config.periodEnabled) grid.append(periodCard());
 
   // 自定义字段
   grid.append(customFieldsCard());
@@ -193,7 +193,7 @@ function editHealth() {
 
 /* 生理期卡片 */
 function periodCard() {
-  const p = profile.period;
+  const p = profile.period || { lastCycles: [], avgDays: 28 };
   const cycles = (p.lastCycles || []).slice().sort();
   const last = cycles.length ? new Date(cycles[cycles.length - 1]) : null;
   const avg = p.avgDays || 28;

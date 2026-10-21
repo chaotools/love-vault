@@ -125,3 +125,9 @@ test('北京时间凌晨按上海日期提醒，不受 UTC 容器影响', () => 
   assert.equal(result.today.date, '2026-08-20');
   assert.equal(result.items.find((item) => item.id === 'md-今天').inDays, 0);
 });
+test('生理期提醒以 config.periodEnabled 为唯一开关，忽略旧的 profile.period.enabled', () => {
+  const input = data();
+  input.profile.period.enabled = false;
+  const { items } = computeReminders(input, { now: NOW });
+  assert.ok(items.find((item) => item.id === 'period'), '全局开关开启时应继续提醒');
+});

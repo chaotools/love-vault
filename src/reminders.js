@@ -68,7 +68,7 @@ function computeReminders(data, opts = {}) {
 
   // 生理期预测
   const period = profile.period;
-  if (config.periodEnabled && period && period.enabled !== false && Array.isArray(period.lastCycles) && period.lastCycles.length) {
+  if (config.periodEnabled && period && Array.isArray(period.lastCycles) && period.lastCycles.length) {
     const last = new Date(period.lastCycles.slice().sort().pop());
     if (!isNaN(last.getTime())) {
       const next = new Date(lunar.startOfDay(last).getTime() + (period.avgDays || 28) * DAY);

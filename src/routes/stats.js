@@ -77,7 +77,7 @@ function statsRouter(getData) {
 
     // 生理期统计（开启且记录 ≥2 条时给出平均周期）
     let periodStat = null;
-    if (profile.period && profile.period.enabled !== false && Array.isArray(profile.period.lastCycles) && profile.period.lastCycles.length >= 2) {
+    if (config.periodEnabled && profile.period && Array.isArray(profile.period.lastCycles) && profile.period.lastCycles.length >= 2) {
       const cycles = profile.period.lastCycles.slice().sort();
       const gaps = [];
       for (let i = 1; i < cycles.length; i++) {

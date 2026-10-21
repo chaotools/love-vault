@@ -176,3 +176,32 @@ test('日历：只有照片的日期会初始化，并按上海日期归类', as
     srv.close();
   }
 });
+test('生理期以 config.periodEnabled 为唯一开关：旧 profile.period.enabled=false 不隐藏日历', async () => {
+  const data = sampleData();
+  data.profile.period.enabled = false;
+  data.profile.period.lastCycles = ['2026-07-22T00:00:00.000Z'];
+  const srv = await startServer(calendarRouter, () => data);
+  try {
+    const r = await fetch(`http://127.0.0.1:${srv.address().port}/?year=2026&month=9`);
+    const body = await r.json();
+    assert.equal(r.status, 200);
+    assert.ok((body.days['2026-09-16'] || []).some((item) => item.type === 'period'));
+  } finally {
+    srv.close();
+  }
+});
+
+test('生理期统计只受 config.periodEnabled 控制', async () => {
+  const data = sampleData();
+  data.profile.period.enabled = false;
+  data.profile.period.lastCycles = ['2026-07-22T00:00:00.000Z', '2026-08-19T00:00:00.000Z'];
+  const srv = await startServer(statsRouter, () => data);
+  try {
+    const r = await fetch(`http://127.0.0.1:${srv.address().port}/`);
+    const body = await r.json();
+    assert.equal(r.status, 200);
+    assert.equal(body.periodStat.count, 2);
+  } finally {
+    srv.close();
+  }
+});
