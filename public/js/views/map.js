@@ -1,4 +1,4 @@
-// 记忆地图：把大事记里已定位的地点按年份串起来
+// 记忆地图：把大事记里已定位的地点展示在腾讯地图上
 import { el, get, emptyState, fmtDate, toast } from '../core.js';
 import { loadTencentMap } from '../tencent-map.mjs';
 
@@ -105,7 +105,6 @@ export async function render(container, params = {}) {
   let TMap;
   let map;
   let markers;
-  let polyline;
   const filtered = () => events
     .filter((event) => selectedYear === 'all' || String(event.date || '').startsWith(selectedYear))
     .filter((event) => selectedType === 'all' || typeOf(event) === selectedType);
@@ -177,7 +176,7 @@ export async function render(container, params = {}) {
   }
 
   const updateLayers = () => {
-    if (!map || !markers || !polyline) return;
+    if (!map || !markers) return;
     const list = filtered();
     const located = list.filter(hasGeo);
     const points = located.map((event) => new TMap.LatLng(Number(event.geo.lat), Number(event.geo.lng)));
@@ -187,15 +186,6 @@ export async function render(container, params = {}) {
       styleId: typeOf(event)
     })));
 
-    const byYear = new Map();
-    for (const event of located.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''))) {
-      const year = String(event.date || '').slice(0, 4) || '未知';
-      if (!byYear.has(year)) byYear.set(year, []);
-      byYear.get(year).push(new TMap.LatLng(Number(event.geo.lat), Number(event.geo.lng)));
-    }
-    polyline.setGeometries([...byYear.entries()]
-      .filter(([, paths]) => paths.length >= 2)
-      .map(([year, paths], index) => ({ id: 'year-' + index, styleId: 'route', paths })));
     if (points.length) fitPoints(map, TMap, points);
     if (!selectedId || !located.some((event) => event.id === selectedId)) selectedId = located[0] ? located[0].id : null;
     renderPanel(list, geoStatus);
@@ -221,11 +211,6 @@ export async function render(container, params = {}) {
     markers = new TMap.MultiMarker({ map, styles, geometries: [] });
     markers.on('click', (event) => {
       if (event && event.geometry && event.geometry.id) selectEvent(event.geometry.id);
-    });
-    polyline = new TMap.MultiPolyline({
-      map,
-      styles: { route: new TMap.PolylineStyle({ color: '#c0516f', width: 4, borderWidth: 1, borderColor: '#ffffff', lineCap: 'round' }) },
-      geometries: []
     });
     activeResize = () => { if (map) map.resize(); };
     window.addEventListener('resize', activeResize);
