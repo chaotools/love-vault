@@ -63,3 +63,29 @@ test('AI 配置校验失败时，普通配置不会部分写入内存', async ()
     else process.env.MOBILE_SERVICE_TOKEN = previousToken;
   }
 });
+test('邮件提醒配置校验接收邮箱并持久化发送时间', async () => {
+  const { server, state } = await startServer({ title: '通知测试' });
+  const base = `http://127.0.0.1:${server.address().port}/api/config`;
+  try {
+    const invalid = await fetch(base, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notifications: { emailEnabled: true, emailTo: 'bad-email', time: '09:00' } })
+    });
+    assert.equal(invalid.status, 400);
+    assert.match((await invalid.json()).error, /接收邮箱/);
+
+    const saved = await fetch(base, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notifications: { emailEnabled: true, emailTo: 'me@example.com, you@example.com', time: '10:30' } })
+    });
+    assert.equal(saved.status, 200);
+    const body = await saved.json();
+    assert.equal(body.notifications.emailEnabled, true);
+    assert.deepEqual(body.notifications.emails, ['me@example.com', 'you@example.com']);
+    assert.equal(body.notifications.time, '10:30');
+    assert.equal(state.data.notifications.emailEnabled, true);
+    assert.equal(state.data.notifications.time, '10:30');
+  } finally {
+    server.close();
+  }
+});

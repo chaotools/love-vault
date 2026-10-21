@@ -18,5 +18,11 @@ services:
       AUTH_BROKER_URL: ${AUTH_BROKER_URL:-http://host.docker.internal:8899/api/love-vault}
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?set PUBLIC_ORIGIN in /srv/love-vault/.env}
       VAULT_ENC_KEY: ${VAULT_ENC_KEY:?set VAULT_ENC_KEY in /srv/love-vault/.env}
+      SMTP_USER: ${SMTP_USER:-chaotools2026@163.com}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_HOST: ${SMTP_HOST:-smtp.163.com}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURE: ${SMTP_SECURE:-true}
+      SMTP_FROM: ${SMTP_FROM:-chaotools2026@163.com}
     extra_hosts:
       - "host.docker.internal:host-gateway"

@@ -79,3 +79,11 @@ test('承诺兑现时间会保存并显示', () => {
   assert.match(source, /e\.doneAt \? ' · ' \+ fmtDate\(e\.doneAt\)/);
   assert.match(source, /e\.doneAt = doneAt/);
 });
+test('设置页包含可配置的邮件提醒', () => {
+  const source = read('public/js/app.js');
+  assert.match(source, /邮件提醒/);
+  assert.match(source, /sEmailEnabled/);
+  assert.match(source, /sEmailTo/);
+  assert.match(source, /notifications: emailSettings\(\)/);
+  assert.match(source, /发送测试邮件/);
+});
