@@ -620,6 +620,7 @@ async function openSettings() {
               toast('已保存 💕');
               m.close();
               renderBanners();
+              router();
             } catch (e) { toast(e.message, 'err'); }
           }
         })

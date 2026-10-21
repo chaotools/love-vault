@@ -3,6 +3,7 @@
 import { el, get, post, patch, del, toast, openModal, field, input, select, textarea, emptyState, subjectLabel } from '../core.js';
 import { RelationGraph } from '../relation-graph.js';
 import { buildRelationModel, personRelationEdges, relationDetail, GROUPS as RELATION_GROUPS } from '../relation-model.mjs';
+import { isBirthdaySoon } from '../birthday-soon.mjs';
 
 const GROUPS = RELATION_GROUPS;
 let people = [];
@@ -37,18 +38,6 @@ export async function render(container, params) {
     const it = people.find((p) => p.id === params.focus);
     if (it) setTimeout(() => editPerson(it), 120);
   }
-}
-
-// 生日临近判断（30 天内显示蛋糕）
-function birthdaySoon(birthday) {
-  if (!birthday) return false;
-  const m = birthday.match(/(\d{1,2})-(\d{1,2})$/);
-  if (!m) return false;
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  let next = new Date(today.getFullYear(), parseInt(m[1]) - 1, parseInt(m[2]));
-  if (next < today) next = new Date(today.getFullYear() + 1, parseInt(m[1]) - 1, parseInt(m[2]));
-  return Math.round((next - today) / 86400000) <= 30;
 }
 
 function build() {
@@ -350,7 +339,7 @@ function buildGrid() {
   }
   for (const p of shown) {
     const cardRelations = personRelationEdges(cardRelationModel, p.id);
-    const soon = birthdaySoon(p.birthday);
+    const soon = isBirthdaySoon(p);
     grid.append(el('div', { class: 'person-card', onclick: () => editPerson(p) },
       soon ? el('div', { class: 'person-bday-cake', text: '🎂' }) : null,
       el('div', { class: 'person-top' },

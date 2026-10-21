@@ -1,5 +1,6 @@
 // TA的档案：基本信息 / 尺码 / 健康 / 生理期 / 自定义字段 / 我们的故事
 import { el, get, put, toast, openModal, field, input, select, emptyState, store, subjectLabel } from '../core.js';
+import { appendCycle, averageCycleDays } from '../period-calc.mjs';
 
 const BASIC_FIELDS = [
   ['nickname', '昵称'], ['birthday', '生日'], ['zodiac', '星座'], ['bloodType', '血型'],
@@ -199,13 +200,29 @@ function periodCard() {
   const avg = p.avgDays || 28;
   const next = last ? new Date(last.getTime() + avg * 86400000) : null;
   const dInput = input({ type: 'date' });
+  const avgInput = input({ type: 'number', min: '15', max: '60', step: '1', value: String(avg), style: 'width:76px;text-align:center' });
+
+  const savePeriod = async (message) => {
+    await put('/api/profile', { period: p });
+    profile = await get('/api/profile');
+    build(); toast(message);
+  };
 
   const record = async () => {
     if (!dInput.value) return;
-    p.lastCycles = [...(p.lastCycles || []), new Date(dInput.value).toISOString()].slice(-12);
-    await put('/api/profile', { period: p });
-    profile = await get('/api/profile');
-    build(); toast('已记录 🌸');
+    p.lastCycles = appendCycle(p.lastCycles, new Date(dInput.value).toISOString(), 12);
+    p.avgDays = averageCycleDays(p.lastCycles, p.avgDays || 28);
+    await savePeriod('已记录 🌸');
+  };
+
+  const saveAverage = async () => {
+    const value = Number(avgInput.value);
+    if (!Number.isInteger(value) || value < 15 || value > 60) {
+      toast('平均周期需为 15–60 天的整数', 'err');
+      return;
+    }
+    p.avgDays = value;
+    await savePeriod('平均周期已保存');
   };
 
   return el('div', { class: 'section-card' },
@@ -214,17 +231,20 @@ function periodCard() {
       el('div', { class: 'period-stat' }, el('span', { class: 'k', text: '最近一次' }), el('span', { class: 'v', text: last ? `${last.getMonth() + 1}月${last.getDate()}日` : '—' })),
       el('div', { class: 'period-stat' }, el('span', { class: 'k', text: '平均周期' }), el('span', { class: 'v', text: avg + ' 天' })),
       el('div', { class: 'period-stat' }, el('span', { class: 'k', text: '预计下次' }), el('span', { class: 'v', text: next ? `${next.getMonth() + 1}月${next.getDate()}日` : '—' }))),
-    el('div', { style: 'display:flex;gap:8px;margin-top:14px;flex-wrap:wrap' },
+    el('div', { style: 'display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center' },
       dInput, el('button', { class: 'small-btn', text: '记一次', onclick: record }),
       cycles.length > 0 ? el('button', {
         class: 'ghost-btn danger', style: 'padding:6px 14px;font-size:12px', text: '清空记录', onclick: async () => {
           if (!confirm('清空全部生理期记录？')) return;
           p.lastCycles = [];
-          await put('/api/profile', { period: p });
-          profile = await get('/api/profile');
-          build();
+          await savePeriod('已清空记录');
         }
       }) : null),
+    el('div', { style: 'display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center' },
+      el('span', { style: 'font-size:12px;color:var(--muted)', text: '平均周期' }),
+      avgInput,
+      el('span', { style: 'font-size:12px;color:var(--muted)', text: '天' }),
+      el('button', { class: 'small-btn', text: '保存周期', onclick: saveAverage })),
     el('p', { style: 'font-size:11.5px;color:var(--muted);margin-top:12px', text: '开启后首页会提前 3 天温柔提醒。仅为贴心参考，身体不适请就医。' }));
 }
 

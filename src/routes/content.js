@@ -148,6 +148,7 @@ const eventsRouter = (c) => collectionRouter(c, (b) => ({
   description: str(b.description),
   type: inEnum(b.type, EVENT_TYPE),
   done: bool(b.done),
+  doneAt: b.doneAt === null || b.doneAt === '' ? null : dateStr(b.doneAt),
   location: str(b.location),
   mediaIds: Array.isArray(b.mediaIds) ? b.mediaIds.filter((x) => typeof x === 'string') : undefined
 }));
@@ -161,7 +162,7 @@ const wishesRouter = (c) => collectionRouter(c, (b) => ({
   status: inEnum(b.status, WISH_STATUS),
   priority: inEnum(b.priority, WISH_PRIORITY),
   source: str(b.source),               // 例如"TA随口说的"
-  doneAt: dateStr(b.doneAt)
+  doneAt: b.doneAt === null || b.doneAt === '' ? null : dateStr(b.doneAt)
 }));
 
 // ---------- 礼物记录 ----------

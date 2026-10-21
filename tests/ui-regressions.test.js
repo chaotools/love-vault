@@ -55,3 +55,27 @@ test('生理期记录入口只由设置里的全局开关控制', () => {
   assert.match(source, /store\.data\.config && store\.data\.config\.periodEnabled/);
   assert.doesNotMatch(source, /profile\.period\.enabled/);
 });
+test('设置保存后会重新渲染当前页面', () => {
+  assert.match(read('public/js/app.js'), /renderBanners\(\);\s*router\(\);/);
+});
+
+test('生理期记录支持自动平均周期和手动编辑', () => {
+  const source = read('public/js/views/profile.js');
+  assert.match(source, /averageCycleDays\(/);
+  assert.match(source, /type: 'number'.*平均周期|avgInput/);
+  assert.match(source, /保存周期/);
+});
+
+test('愿望状态切换会同步完成时间', () => {
+  const source = read('public/js/views/wishes.js');
+  assert.match(source, /const nextStatus = status\.value/);
+  assert.match(source, /doneAt: nextStatus === '已实现'/);
+  assert.match(source, /w\.status === '已实现' && w\.doneAt/);
+});
+
+test('承诺兑现时间会保存并显示', () => {
+  const source = read('public/js/views/events.js');
+  assert.match(source, /const doneAt = done \? new Date\(\)\.toISOString\(\) : null/);
+  assert.match(source, /e\.doneAt \? ' · ' \+ fmtDate\(e\.doneAt\)/);
+  assert.match(source, /e\.doneAt = doneAt/);
+});

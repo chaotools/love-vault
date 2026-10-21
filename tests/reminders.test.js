@@ -131,3 +131,14 @@ test('生理期提醒以 config.periodEnabled 为唯一开关，忽略旧的 pro
   const { items } = computeReminders(input, { now: NOW });
   assert.ok(items.find((item) => item.id === 'period'), '全局开关开启时应继续提醒');
 });
+test('本月记录按上海时区统计，UTC 月初边界不会漏记', () => {
+  const input = data({
+    config: { anniversary: '', periodEnabled: false, memorialDays: [], people: [] },
+    profile: {},
+    people: [],
+    preferences: [{ createdAt: '2026-08-31T16:30:00.000Z' }] // 上海时间 2026-09-01 00:30
+  });
+  const { activity } = computeReminders(input, { now: new Date('2026-09-02T02:00:00.000Z') }); // 上海 9 月 2 日
+  assert.equal(activity.lastRecordAt, '2026-09-01');
+  assert.equal(activity.monthCount, 1);
+});
