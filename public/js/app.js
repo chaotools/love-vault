@@ -11,10 +11,11 @@ import * as eventsView from './views/events.js';
 import * as wishesView from './views/wishes.js';
 import * as statsView from './views/stats.js';
 import * as calendarView from './views/calendar.js';
+import * as mapView from './views/map.js';
 import * as askView from './views/ask.js';
 
 const VIEWS = {
-  timeline, profile, preferences, people: peopleView, events: eventsView, wishes: wishesView, stats: statsView, calendar: calendarView, ask: askView
+  timeline, profile, preferences, people: peopleView, events: eventsView, map: mapView, wishes: wishesView, stats: statsView, calendar: calendarView, ask: askView
 };
 let activeView = null;
 let routerReady = false;

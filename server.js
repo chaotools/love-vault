@@ -25,6 +25,7 @@ const { rateLimit } = require('./src/rate-limit');
 const { resolveHost, shouldWarnUnauthExposure } = require('./src/runtime-config');
 const { startEmailScheduler, emailService } = require('./src/email-notifications');
 const { notificationsRouter } = require('./src/routes/notifications');
+const { geoRouter } = require('./src/routes/geo');
 
 const ROOT = __dirname;
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -69,6 +70,7 @@ app.use('/api', auth.csrfProtect, auth.requireAuth, attachVault,
 
 app.use('/api/config', configRouter((req) => req.vault.config, (req) => req.vault.config.save()));
 app.use('/api/notifications', notificationsRouter((req) => req.vault, emailService));
+app.use('/api/geo', geoRouter());
 app.use('/api/profile', content.profileRouter((req) => req.vault.profile));
 app.use('/api/preferences', content.preferencesRouter((req) => req.vault.preferences));
 app.use('/api/people', content.peopleRouter((req) => req.vault.people));

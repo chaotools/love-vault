@@ -115,7 +115,76 @@ function editEvent(e) {
   const date = input({ type: 'datetime-local', value: e ? toLocalInput(e.date) : toLocalInput(new Date().toISOString()) });
   const title = input({ type: 'text', value: e ? e.title : '', placeholder: '比如：第一次一起看海' });
   const type = select(TYPES.map((t) => [t, (TYPE_ICON[t] || '') + ' ' + t]), e ? e.type : (filterType !== 'all' ? filterType : '里程碑'));
-  const location = input({ type: 'text', value: e ? e.location : '', placeholder: '地点（可空）' });
+  const location = input({ type: 'text', value: e ? e.location : '', placeholder: '地点（可搜索，也可只填文字）' });
+  let selectedGeo = e && e.geo ? { ...e.geo } : null;
+  const geoStatus = el('div', { class: 'geo-status' });
+  const geoClear = el('button', { class: 'ghost-btn geo-clear', type: 'button', text: '清除坐标' });
+  const geoSuggestions = el('div', { class: 'geo-suggestions', hidden: true });
+  let geoSearchTimer = null;
+  let geoSearchSeq = 0;
+
+  const updateGeoStatus = () => {
+    if (selectedGeo) {
+      geoStatus.textContent = '📍 已定位：' + (selectedGeo.name || selectedGeo.address || '');
+      geoStatus.className = 'geo-status ok';
+      geoClear.hidden = false;
+    } else {
+      geoStatus.textContent = location.value.trim() ? '未定位：输入地点后从提示中选择一个' : '';
+      geoStatus.className = 'geo-status';
+      geoClear.hidden = true;
+    }
+  };
+  const chooseGeo = (place) => {
+    selectedGeo = { ...place, placeId: place.id || place.placeId || '' };
+    location.value = place.name || place.address || location.value;
+    geoSuggestions.hidden = true;
+    updateGeoStatus();
+  };
+  const renderGeoPlace = (place) => el('button', {
+    class: 'geo-suggestion', type: 'button',
+    onclick: () => chooseGeo(place)
+  },
+  el('span', { class: 'geo-suggestion-name', text: place.name || place.address || '未命名地点' }),
+  el('span', { class: 'geo-suggestion-address', text: place.address || '' }));
+
+  location.addEventListener('input', () => {
+    if (selectedGeo && location.value.trim() !== (selectedGeo.name || selectedGeo.address || '')) selectedGeo = null;
+    updateGeoStatus();
+    clearTimeout(geoSearchTimer);
+    const keyword = location.value.trim();
+    if (keyword.length < 2) {
+      geoSuggestions.hidden = true;
+      return;
+    }
+    geoSearchTimer = setTimeout(async () => {
+      const seq = ++geoSearchSeq;
+      try {
+        const result = await get('/api/geo/suggest?q=' + encodeURIComponent(keyword));
+        if (seq !== geoSearchSeq) return;
+        geoSuggestions.innerHTML = '';
+        if (!result.places || !result.places.length) {
+          geoSuggestions.append(el('div', { class: 'geo-suggestion-empty', text: '没有找到地点，可以只保留文字地点' }));
+        } else {
+          result.places.forEach((place) => geoSuggestions.append(renderGeoPlace(place)));
+        }
+        geoSuggestions.hidden = false;
+      } catch (error) {
+        if (seq === geoSearchSeq) {
+          geoSuggestions.innerHTML = '';
+          geoSuggestions.append(el('div', { class: 'geo-suggestion-empty', text: '地点搜索暂不可用：' + error.message }));
+          geoSuggestions.hidden = false;
+        }
+      }
+    }, 320);
+  });
+  geoClear.addEventListener('click', () => {
+    selectedGeo = null;
+    updateGeoStatus();
+  });
+  updateGeoStatus();
+  const locationField = el('div', { class: 'geo-field' },
+    location, geoSuggestions,
+    el('div', { class: 'geo-status-row' }, geoStatus, geoClear));
   const desc = textarea({ placeholder: `发生了什么、${subjectLabel()}说了什么、你的感受…（可空）` }, e ? e.description : '');
 
   // 关联照片选择器
@@ -141,7 +210,7 @@ function editEvent(e) {
   const md = openModal({
     title: e ? '编辑大事记' : '记一件大事', wide: true,
     content: el('div', null,
-      field('时间', date), field('标题', title), field('类型', type), field('地点', location),
+      field('时间', date), field('标题', title), field('类型', type), field('地点（可搜索）', locationField),
       field('详情', desc), field('关联照片（点击选择/取消）', picker)),
     buttons: [
       { el: el('button', { class: 'ghost-btn', text: '取消', onclick: () => md.close() }) },
@@ -152,7 +221,7 @@ function editEvent(e) {
         const body = {
           date: parsedDate.toISOString(), title: title.value.trim(),
           type: type.value, location: location.value.trim(), description: desc.value.trim(),
-          mediaIds: [...selected]
+          geo: selectedGeo, mediaIds: [...selected]
         };
         if (e) {
           const updated = await patch('/api/events/' + e.id, body);

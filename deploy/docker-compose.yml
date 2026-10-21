@@ -24,5 +24,8 @@ services:
       SMTP_PORT: ${SMTP_PORT:-465}
       SMTP_SECURE: ${SMTP_SECURE:-true}
       SMTP_FROM: ${SMTP_FROM:-chaotools2026@163.com}
+      TENCENT_MAP_JS_KEY: ${TENCENT_MAP_JS_KEY:-}
+      TENCENT_MAP_WEBSERVICE_KEY: ${TENCENT_MAP_WEBSERVICE_KEY:-}
+      TENCENT_MAP_REFERER: ${TENCENT_MAP_REFERER:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
