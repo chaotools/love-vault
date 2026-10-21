@@ -87,3 +87,16 @@ test('设置页包含可配置的邮件提醒', () => {
   assert.match(source, /notifications: emailSettings\(\)/);
   assert.match(source, /发送测试邮件/);
 });
+test('记忆地图路由、地点提示和事件坐标已接线', () => {
+  const app = read('public/js/app.js');
+  const html = read('public/index.html');
+  const events = read('public/js/views/events.js');
+  const map = read('public/js/views/map.js');
+  assert.match(app, /map: mapView/);
+  assert.match(html, /data-route="map"/);
+  assert.match(events, /\/api\/geo\/suggest/);
+  assert.match(events, /geo: selectedGeo/);
+  assert.match(map, /loadTencentMap/);
+  assert.match(map, /MultiMarker/);
+  assert.match(map, /MultiPolyline/);
+});

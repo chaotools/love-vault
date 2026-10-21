@@ -1276,3 +1276,58 @@ body::before { background: var(--bg); }
   .hearts { display: none; }
   .modal, .modal-card, .toast { animation: none !important; }
 }
+/* ---------- 地点搜索 ---------- */
+.geo-field { position: relative; }
+.geo-status-row { display: flex; align-items: center; gap: 10px; margin-top: 7px; flex-wrap: wrap; }
+.geo-status { font-size: 12px; color: var(--muted); }
+.geo-status.ok { color: var(--rose-dark); }
+.geo-clear { padding: 5px 10px; font-size: 12px; }
+.geo-suggestions { position: absolute; left: 0; right: 0; top: calc(100% - 1px); z-index: 30; max-height: 260px; overflow-y: auto; padding: 6px; border: 1px solid var(--border); border-top: 0; border-radius: 0 0 var(--radius-sm) var(--radius-sm); background: var(--card); box-shadow: var(--shadow-card); }
+.geo-suggestion { display: flex; flex-direction: column; align-items: flex-start; width: 100%; padding: 9px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+.geo-suggestion:hover, .geo-suggestion:focus-visible { background: var(--rose-glow); outline: none; }
+.geo-suggestion-name { font-size: 13px; font-weight: 600; }
+.geo-suggestion-address, .geo-suggestion-empty { color: var(--muted); font-size: 11.5px; line-height: 1.5; }
+.geo-suggestion-empty { padding: 10px; }
+
+/* ---------- 记忆地图 ---------- */
+.map-page-head { align-items: flex-end; }
+.map-filters { display: flex; align-items: center; gap: 8px; }
+.map-filter-select { padding: 8px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--card); color: var(--ink); font-size: 13px; }
+.map-summary { margin: 2px 0 12px; color: var(--muted); font-size: 12.5px; }
+.map-summary-muted { color: var(--muted); }
+.map-type-filter { margin-bottom: 12px; overflow-x: auto; padding-bottom: 2px; }
+.map-type-seg { width: max-content; min-width: 100%; }
+.map-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: stretch; }
+.map-shell { position: relative; height: 640px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); background: #e9e5e2; box-shadow: var(--shadow-card); }
+.memory-map { width: 100%; height: 100%; }
+.map-panel { height: 640px; overflow-y: auto; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow-card); }
+.map-panel .empty { padding: 38px 14px; }
+.map-detail-card { padding: 15px; margin-bottom: 10px; border-radius: var(--radius-sm); background: var(--period-bg); border: 1px solid var(--period-border); }
+.map-detail-date { color: var(--rose-dark); font-size: 11.5px; font-weight: 600; }
+.map-detail-title { margin-top: 3px; font-size: 17px; font-weight: 700; }
+.map-detail-location { margin-top: 8px; font-size: 12.5px; color: var(--ink); }
+.map-detail-address { margin-top: 3px; font-size: 11.5px; color: var(--muted); }
+.map-detail-desc { max-height: 110px; overflow: auto; margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.map-detail-card .small-btn { margin-top: 11px; }
+.map-panel-title { margin: 12px 4px 6px; color: var(--muted); font-size: 11.5px; font-weight: 600; letter-spacing: .04em; }
+.map-event-item { display: flex; align-items: flex-start; width: 100%; gap: 9px; padding: 9px 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+.map-event-item:hover, .map-event-item:focus-visible, .map-event-item.selected { border-color: var(--period-border); background: var(--period-bg); outline: none; }
+.map-event-icon { flex: 0 0 22px; font-size: 16px; line-height: 1.4; text-align: center; }
+.map-event-copy { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.map-event-title { overflow: hidden; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.map-event-meta { overflow: hidden; color: var(--muted); font-size: 11px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.map-event-unlocated { opacity: .82; }
+.map-panel-note { margin: 12px 5px; color: var(--muted); font-size: 11.5px; line-height: 1.6; }
+
+@media (max-width: 900px) {
+  .map-page-head { align-items: flex-start; gap: 10px; }
+  .map-layout { grid-template-columns: 1fr; }
+  .map-shell { height: 58vh; min-height: 360px; }
+  .map-panel { height: auto; max-height: none; }
+  .map-filters { width: 100%; }
+  .map-filter-select { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .geo-suggestion, .map-event-item { transition: none; }
+}

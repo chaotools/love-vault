@@ -37,7 +37,7 @@ function searchRouter(getData) {
         push('people', it.id, it.name, [it.relation, it.group, it.birthday].filter(Boolean).join(' · '));
     }
     for (const it of d.events) {
-      if ([it.title, it.description, it.location, it.type].join(' ').toLowerCase().includes(q))
+      if ([it.title, it.description, it.location, it.geo && it.geo.name, it.geo && it.geo.address, it.type].join(' ').toLowerCase().includes(q))
         push('events', it.id, it.title, (it.date || '').slice(0, 10) + ' · ' + it.type);
     }
     for (const it of d.wishes) {

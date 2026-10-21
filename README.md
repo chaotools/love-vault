@@ -93,8 +93,13 @@ pm2 save && pm2 startup
 | `SMTP_USER` / `SMTP_PASS` | `chaotools2026@163.com` / - | 邮件提醒发件账号与 SMTP 授权码；`SMTP_PASS` 使用邮箱授权码，不是登录密码 |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` | `smtp.163.com` / `465` / `true` | 默认使用 163 SMTP；也可换成其他 SMTP 服务 |
 | `SMTP_FROM` | `SMTP_USER` | 发件人地址，通常与 `SMTP_USER` 相同 |
+| `TENCENT_MAP_JS_KEY` | - | 腾讯位置服务网页地图 Key；只用于浏览器展示地图 |
+| `TENCENT_MAP_WEBSERVICE_KEY` | - | 腾讯位置服务 WebService Key；仅服务器使用，用于地点提示和逆地址解析 |
+| `TENCENT_MAP_REFERER` | - | 可选。WebService Key 使用域名白名单时，服务端请求需要携带的来源地址 |
 
 邮件提醒在服务器端按北京时间定时生成每日摘要并发送；接收邮箱、是否开启和发送时间可在 ⚙ 设置 → 邮件提醒中填写。需要先配置 `SMTP_PASS`（163 邮箱授权码）。
+
+记忆地图使用腾讯位置服务：网页地图 Key 放 `TENCENT_MAP_JS_KEY`，服务端地点搜索 Key 放 `TENCENT_MAP_WEBSERVICE_KEY`。建议两个 Key 分别设置 IP/域名白名单，服务端 Key 不应出现在浏览器。
 
 AI 设置支持内置供应商和自定义 OpenAI 兼容接口。服务器多用户模式下，自定义接口必须是 HTTPS 公网域名并使用 443 端口；保存时会解析 DNS，拒绝环回、内网、链路本地、保留和组播地址，实际请求也禁止跟随跳转。这样无需把所有供应商硬编码，同时避免把 Love Vault 变成访问内网的 SSRF 代理。服务器本机的 Ollama、HTTP 接口或其他受信任内网网关，应通过 `AI_BASE_URL`、`AI_API_KEY`、`AI_MODEL` 由管理员统一配置。
 

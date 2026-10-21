@@ -140,6 +140,25 @@ const albumsRouter = (c) => collectionRouter(c, (b) => ({
   description: str(b.description)
 }));
 
+// 地图坐标：腾讯使用 GCJ-02；保留空值语义，允许显式清除旧坐标
+function geoSanitize(raw) {
+  if (raw === undefined) return undefined;
+  if (raw === null || raw === '') return null;
+  if (typeof raw !== 'object') return null;
+  const lat = Number(raw.lat);
+  const lng = Number(raw.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return {
+    name: str(raw.name) || '',
+    address: str(raw.address) || '',
+    lat: Math.round(lat * 1e6) / 1e6,
+    lng: Math.round(lng * 1e6) / 1e6,
+    coordSystem: 'gcj02',
+    provider: 'tencent',
+    placeId: str(raw.placeId) || ''
+  };
+}
+
 // ---------- 大事记 ----------
 const EVENT_TYPE = ['里程碑', '约会', '旅行', '争吵与和解', '承诺', '其他'];
 const eventsRouter = (c) => collectionRouter(c, (b) => ({
@@ -150,6 +169,7 @@ const eventsRouter = (c) => collectionRouter(c, (b) => ({
   done: bool(b.done),
   doneAt: b.doneAt === null || b.doneAt === '' ? null : dateStr(b.doneAt),
   location: str(b.location),
+  geo: geoSanitize(b.geo),
   mediaIds: Array.isArray(b.mediaIds) ? b.mediaIds.filter((x) => typeof x === 'string') : undefined
 }));
 
