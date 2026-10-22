@@ -30,7 +30,7 @@ export function mediaPreview(media, { className = '', title = '', alt = '', load
   }, el('span', { text: media.type === 'video' ? '🎬' : '🖼️' }));
 
   const image = (src) => {
-    const img = el('img', { src, class: className, title, alt, ...(loading ? { loading } : {}) });
+    const img = el('img', { src, class: className, title: title || (media.motionUrl ? '实况照片，点开播放' : ''), alt, ...(loading ? { loading } : {}) });
     let triedOriginal = src === media.url;
     img.addEventListener('error', () => {
       if (!triedOriginal && media.type !== 'video' && media.url && img.getAttribute('src') !== media.url) {
@@ -244,9 +244,22 @@ export function openLightbox(items, index, { onEdit, onDelete } = {}) {
     if (!m) return closeLightbox();
     const media = document.getElementById('lbMedia');
     media.innerHTML = '';
-    media.append(m.type === 'video'
-      ? el('video', { src: m.url, controls: true, autoplay: true, playsinline: true })
-      : el('img', { src: m.url, alt: m.note || '' }));
+    if (m.type === 'video') {
+      media.append(el('video', { src: m.url, controls: true, autoplay: true, playsinline: true }));
+    } else if (m.motionUrl) {
+      const image = el('img', { src: m.url, alt: m.note || '' });
+      const player = el('div', { class: 'lb-live' }, image,
+        el('button', {
+          class: 'lb-live-play', type: 'button', text: '▶ 实况',
+          onclick: () => {
+            const video = el('video', { src: m.motionUrl, controls: true, autoplay: true, playsinline: true, loop: true });
+            player.replaceWith(video);
+          }
+        }));
+      media.append(player);
+    } else {
+      media.append(el('img', { src: m.url, alt: m.note || '' }));
+    }
     document.getElementById('lbDate').textContent = fmtDateTime(m.takenAt);
     document.getElementById('lbNote').textContent = [m.note, m.location ? '📍' + m.location : ''].filter(Boolean).join(' · ');
     const tags = document.getElementById('lbTags');

@@ -120,7 +120,8 @@ async function probeVideo(p) {
   return {
     width: v ? v.width : null,
     height: v ? v.height : null,
-    duration: data.format && data.format.duration ? parseFloat(data.format.duration) : null
+    duration: data.format && data.format.duration ? parseFloat(data.format.duration) : null,
+    hasAudio: (data.streams || []).some((s) => s.codec_type === 'audio')
   };
 }
 
@@ -161,6 +162,50 @@ async function generateVideoCover(src, dest, duration) {
   }
 }
 
+// ---------- 动态照片（Google/Meizu Motion Photo、iPhone Live Photo） ----------
+// Google/Meizu 等动态照片把 MP4 直接追加在 JPEG 末尾，偏移和长度写在 XMP 的
+// Container:Directory 中。这里只读取最后一段，并把它转码成浏览器通用的 H.264 MP4。
+function findMotionPhotoPayload(buffer) {
+  const text = buffer.toString('latin1');
+  if (!/Camera:MotionPhoto=["']1["']|MZCamera:LivePhoto=["']/.test(text)) return null;
+  const match = text.match(/Item:Mime=["']video\/mp4["'][\s\S]{0,500}?Item:Length=["'](\d+)["']/i);
+  if (!match) return null;
+  const length = Number(match[1]);
+  if (!Number.isInteger(length) || length <= 0 || length >= buffer.length) return null;
+  const offset = buffer.length - length;
+  if (buffer.toString('latin1', offset + 4, offset + 8) !== 'ftyp') return null;
+  return { offset, length };
+}
+
+async function transcodeMotionVideo(source, dest) {
+  await execFileP('ffmpeg', [
+    '-y', '-i', source,
+    '-map', '0:v:0', '-map', '0:a?',
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '24', '-pix_fmt', 'yuv420p',
+    '-c:a', 'aac', '-b:a', '128k',
+    '-movflags', '+faststart',
+    dest
+  ]);
+  return probeVideo(dest);
+}
+
+async function extractMotionPhoto(fullPath, dest) {
+  const buffer = await fsp.readFile(fullPath);
+  const payload = findMotionPhotoPayload(buffer);
+  if (!payload) return null;
+  const source = dest + '.source.mp4';
+  await fsp.writeFile(source, buffer.subarray(payload.offset, payload.offset + payload.length));
+  try {
+    return await transcodeMotionVideo(source, dest);
+  } finally {
+    await fsp.unlink(source).catch(() => {});
+  }
+}
+
+async function prepareLivePhotoVideo(source, dest) {
+  return transcodeMotionVideo(source, dest);
+}
+
 // 把一个媒体文件索引成记忆对象（location/eventId 由用户后续编辑补充）
 async function indexFile(fullPath, filename, id, dirs = {}) {
   const ext = extOf(filename);
@@ -169,7 +214,7 @@ async function indexFile(fullPath, filename, id, dirs = {}) {
   const mem = {
     id, type: isVideo ? 'video' : 'photo',
     filename, ext,
-    width: null, height: null, duration: null,
+    width: null, height: null, duration: null, motion: null,
     takenAt: null, note: '', tags: [], eventId: null, location: '',
     uploadedAt: new Date().toISOString()
   };
@@ -185,6 +230,27 @@ async function indexFile(fullPath, filename, id, dirs = {}) {
     mem.takenAt = takenAtOverride || (await readImageDate(fullPath)) || stat.mtime.toISOString();
     try { const m = await sharp(fullPath).metadata(); mem.width = m.width; mem.height = m.height; } catch (e) { /* ignore */ }
     try { await generateImageThumb(fullPath, thumbPath); } catch (e) { console.error('缩略图生成失败:', e.message); }
+    try {
+      const motionPath = path.join(dirs.mediaDir || MEDIA_DIR, id + '-motion.mp4');
+      let info = null;
+      let source = 'motion-photo';
+      if (dirs.motionSource) {
+        info = await prepareLivePhotoVideo(dirs.motionSource, motionPath);
+        source = 'live-photo';
+      } else {
+        info = await extractMotionPhoto(fullPath, motionPath);
+      }
+      if (info) {
+        mem.motion = {
+          filename: path.basename(motionPath),
+          duration: info.duration,
+          width: info.width,
+          height: info.height,
+          hasAudio: info.hasAudio === true,
+          source
+        };
+      }
+    } catch (e) { console.error('动态照片处理失败:', e.message); }
   }
   return mem;
 }
@@ -200,5 +266,6 @@ async function convertHeic(fullPath, filename) {
 
 module.exports = {
   init, indexFile, convertHeic, extOf, VIDEO_EXT, HEIC_EXT, validateMediaFile, probeVideo,
+  findMotionPhotoPayload, extractMotionPhoto, prepareLivePhotoVideo, transcodeMotionVideo,
   MEDIA_DIR: () => MEDIA_DIR, THUMB_DIR: () => THUMB_DIR
 };

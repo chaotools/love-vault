@@ -280,7 +280,10 @@ function memoriesRouter(collection) {
       // 照片没有缩略图时可安全使用原图；视频不能作为 <img> 的回退来源。
       if (m.type !== 'video') thumb = url;
     }
-    return { ...m, url, thumb };
+    return {
+      ...m, url, thumb,
+      motionUrl: m.motion && m.motion.filename ? '/media/' + encodeURIComponent(m.motion.filename) : null
+    };
   };
 
   const uploadTakenAts = (body, count) => {
@@ -344,8 +347,25 @@ function memoriesRouter(collection) {
     }
     try {
       const pending = [];
+      const consumedUploads = new Set();
+      const pairedMotionSources = new Set();
       for (const [index, file] of files.entries()) {
+        if (consumedUploads.has(file.path)) continue;
         const originalExt = media.extOf(file.originalname);
+        let motionSource = null;
+        if (IMAGE_UPLOAD_EXT.has(originalExt)) {
+          const originalBase = path.basename(file.originalname, path.extname(file.originalname)).toLowerCase();
+          const pairedVideo = files.find((candidate) => candidate !== file
+            && !consumedUploads.has(candidate.path)
+            && media.VIDEO_EXT.has(media.extOf(candidate.originalname))
+            && path.basename(candidate.originalname, path.extname(candidate.originalname)).toLowerCase() === originalBase);
+          if (pairedVideo) {
+            consumedUploads.add(pairedVideo.path);
+            pairedMotionSources.add(pairedVideo.path);
+            artifacts.add(pairedVideo.path);
+            motionSource = pairedVideo.path;
+          }
+        }
         const limit = IMAGE_UPLOAD_EXT.has(originalExt) ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE;
         if (file.size > limit) {
           throw uploadError(`${IMAGE_UPLOAD_EXT.has(originalExt) ? '照片' : '视频'}不能超过 ${limit / 1024 / 1024} MB`, 413);
@@ -365,14 +385,18 @@ function memoriesRouter(collection) {
         artifacts.add(path.join(req.vault.thumbDir, id + '.jpg'));
         const mem = await media.indexFile(fullPath, filename, id, {
           thumbDir: req.vault.thumbDir,
-          takenAt: takenAts[index]
+          mediaDir: req.vault.mediaDir,
+          takenAt: takenAts[index],
+          motionSource
         });
+        if (mem.motion && mem.motion.filename) artifacts.add(path.join(req.vault.mediaDir, mem.motion.filename));
         pending.push(mem);
       }
       const collection = resolve(req);
       const saved = typeof collection.addMany === 'function'
         ? await collection.addMany(pending)
         : await Promise.all(pending.map((mem) => collection.add(mem)));
+      for (const source of pairedMotionSources) await fsp.unlink(source).catch(() => {});
       res.json({ ok: true, items: await Promise.all(saved.map((mem) => publicMem(req, mem))) });
     } catch (e) {
       if (!e.status || e.status >= 500) console.error('上传处理失败:', e);
@@ -403,6 +427,7 @@ function memoriesRouter(collection) {
     const mem = resolve(req).get(req.params.id);
     if (!mem) return res.status(404).json({ error: 'not found' });
     await fsp.unlink(path.join(req.vault.mediaDir, mem.filename)).catch(() => {});
+    if (mem.motion && mem.motion.filename) await fsp.unlink(path.join(req.vault.mediaDir, mem.motion.filename)).catch(() => {});
     await fsp.unlink(path.join(req.vault.thumbDir, mem.id + '.jpg')).catch(() => {});
     await resolve(req).remove(mem.id);
     // 再保存一次让 .bak 前进到删除后的版本：被删照片的备注/标签/地点不应残留在回滚备份里
@@ -425,10 +450,11 @@ async function ensureIndex(collection, mediaDir, thumbDir) {
     if (!existing.has(m.filename)) { await collection.remove(m.id); changed = true; }
   }
   for (const file of files) {
+    if (file.endsWith('-motion.mp4')) continue;
     const id = file.replace(/\.[^.]+$/, '');
     if (known.has(id)) continue;
     try {
-      const mem = await media.indexFile(path.join(mediaDir, file), file, id, { thumbDir });
+      const mem = await media.indexFile(path.join(mediaDir, file), file, id, { thumbDir, mediaDir });
       await collection.add(mem);
       changed = true;
       console.log('已索引:', file);

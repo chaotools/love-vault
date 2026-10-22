@@ -1331,3 +1331,19 @@ body::before { background: var(--bg); }
 @media (prefers-reduced-motion: reduce) {
   .geo-suggestion, .map-event-item { transition: none; }
 }
+
+/* ---------- 实况照片 ---------- */
+.card .live-badge { left: 12px; right: auto; background: rgba(184, 74, 101, .86); }
+.lb-live { position: relative; display: inline-flex; max-width: 100%; max-height: 100%; align-items: center; justify-content: center; }
+.lb-live > img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 8px 40px rgba(0,0,0,.4); }
+.lb-live-play {
+  position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+  border: 1px solid rgba(255,255,255,.35); border-radius: var(--radius-full);
+  background: rgba(0,0,0,.42); backdrop-filter: blur(10px); color: #fff;
+  padding: 9px 20px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.lb-live-play:hover { background: rgba(0,0,0,.62); }
+@media (max-width: 680px) {
+  .lb-media { padding: 52px 14px 130px; }
+  .lb-live-play { bottom: 10px; }
+}
