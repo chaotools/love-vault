@@ -1,5 +1,5 @@
 // 爱情日历：月视图，聚合纪念日/生日/大事记/照片/生理期
-import { el, get, openModal, emptyState, fmtDate, subjectLabel } from '../core.js';
+import { el, get, openModal, emptyState, subjectLabel } from '../core.js';
 
 let viewEl = null;
 let year = new Date().getFullYear();

@@ -440,8 +440,6 @@ body::before {
   cursor: pointer; transition: all .2s;
 }
 .small-btn:hover { background: var(--rose); color: #fff; }
-.small-btn.green { background: var(--green-soft); color: var(--green); }
-.small-btn.green:hover { background: var(--green); color: #fff; }
 
 /* ===== 弹窗（高于灯箱，灯箱内可弹编辑窗） ===== */
 .modal {
@@ -539,7 +537,6 @@ body::before {
   outline: none; background: var(--bg); color: var(--ink); resize: vertical;
 }
 .story-box textarea:focus { border-color: var(--rose); background: var(--input-focus-bg); }
-.story-view { font-size: 14px; line-height: 2; color: var(--ink-light); white-space: pre-wrap; }
 
 /* 生理期 */
 .period-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -673,7 +670,6 @@ body::before {
 .vtl-date { font-family: var(--serif); font-size: 13px; color: var(--muted); letter-spacing: 0.5px; }
 .vtl-title { font-size: 16px; font-weight: 700; }
 .vtl-desc { font-size: 13.5px; color: var(--ink-light); margin-top: 8px; line-height: 1.8; white-space: pre-wrap; }
-.vtl-loc { font-size: 12px; color: var(--muted); margin-top: 8px; }
 .vtl-media { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 .vtl-media img {
   width: 74px; height: 74px; object-fit: cover; border-radius: 10px; cursor: pointer;
@@ -753,7 +749,6 @@ body::before {
 }
 .draw-card .dc-tag { font-size: 11px; color: var(--rose-dark); font-weight: 700; letter-spacing: 2px; }
 .draw-card .dc-text { font-family: var(--serif); font-size: 17px; font-weight: 600; margin-top: 10px; line-height: 1.6; }
-.draw-card .dc-from { font-size: 11px; color: var(--muted); margin-top: 10px; }
 
 /* ===== AI 问答 ===== */
 .chat-wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; height: calc(100vh - var(--toolbar-h) - var(--nav-h) - 40px); }

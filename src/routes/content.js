@@ -7,20 +7,21 @@ const multer = require('multer');
 const media = require('../media');
 const { rateLimit } = require('../rate-limit');
 const { collectionRouter, str, bool, dateStr, inEnum } = require('./collections');
+const {
+  EVENT_TYPES, WISH_STATUSES, WISH_PRIORITIES, GIFT_DIRECTIONS,
+  PREF_POLARITIES, PREF_CATEGORIES, PEOPLE_GROUPS
+} = require('../domain');
 
 // ---------- 偏好 ----------
-const PREF_POLARITY = ['喜欢', '不喜欢'];
-const PREF_CATEGORY = ['吃', '喝', '穿', '用', '玩', '其他'];
 const preferencesRouter = (c) => collectionRouter(c, (b) => ({
-  polarity: inEnum(b.polarity, PREF_POLARITY),
-  category: inEnum(b.category, PREF_CATEGORY),
+  polarity: inEnum(b.polarity, PREF_POLARITIES),
+  category: inEnum(b.category, PREF_CATEGORIES),
   title: str(b.title),
   detail: str(b.detail),
   source: str(b.source)                 // 来源（如"AI 对话"）
 }));
 
 // ---------- 人名关系 ----------
-const PEOPLE_GROUP = ['家人', '朋友', '同事', '其他'];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // 人物间连接 sanitize：relations: [{ toId, type, note, bidirectional? }]
@@ -77,7 +78,7 @@ const peopleRouter = (c) => {
   const inner = collectionRouter(c, (b, isPatch, selfId) => ({
     name: str(b.name),
     relation: typeof b.relation === 'string' ? b.relation.trim().slice(0, 50) : undefined,
-    group: inEnum(b.group, PEOPLE_GROUP),
+    group: inEnum(b.group, PEOPLE_GROUPS),
     birthday: str(b.birthday),           // 形如 03-14 或 1998-03-14
     lunar: bool(b.lunar),                // 生日按农历过
     leap: bool(b.leap),                  // 闰月生日（如闰二月初一生日）
@@ -160,12 +161,12 @@ function geoSanitize(raw) {
 }
 
 // ---------- 大事记 ----------
-const EVENT_TYPE = ['里程碑', '约会', '旅行', '争吵与和解', '承诺', '其他'];
+
 const eventsRouter = (c) => collectionRouter(c, (b) => ({
   date: dateStr(b.date),
   title: str(b.title),
   description: str(b.description),
-  type: inEnum(b.type, EVENT_TYPE),
+  type: inEnum(b.type, EVENT_TYPES),
   done: bool(b.done),
   doneAt: b.doneAt === null || b.doneAt === '' ? null : dateStr(b.doneAt),
   location: str(b.location),
@@ -174,22 +175,19 @@ const eventsRouter = (c) => collectionRouter(c, (b) => ({
 }));
 
 // ---------- 愿望清单 ----------
-const WISH_STATUS = ['想要', '计划', '已实现'];
-const WISH_PRIORITY = ['高', '中', '低'];
 const wishesRouter = (c) => collectionRouter(c, (b) => ({
   title: str(b.title),
   note: str(b.note),
-  status: inEnum(b.status, WISH_STATUS),
-  priority: inEnum(b.priority, WISH_PRIORITY),
+  status: inEnum(b.status, WISH_STATUSES),
+  priority: inEnum(b.priority, WISH_PRIORITIES),
   source: str(b.source),               // 例如"TA随口说的"
   doneAt: b.doneAt === null || b.doneAt === '' ? null : dateStr(b.doneAt)
 }));
 
 // ---------- 礼物记录 ----------
-const GIFT_DIRECTION = ['送给TA', 'TA送我'];
 const giftsRouter = (c) => collectionRouter(c, (b) => ({
   title: str(b.title),
-  direction: inEnum(b.direction, GIFT_DIRECTION),
+  direction: inEnum(b.direction, GIFT_DIRECTIONS),
   occasion: str(b.occasion),           // 生日 / 纪念日 / 惊喜…
   date: dateStr(b.date),
   note: str(b.note),
@@ -204,7 +202,7 @@ const PROFILE_DEFAULT = {
     topSize: '', bottomSize: '', ringSize: '', glasses: ''
   },
   health: { allergies: '', medications: '', notes: '' },
-  period: { enabled: false, lastCycles: [], avgDays: 28 },   // 生理期记录，默认关闭
+  period: { lastCycles: [], avgDays: 28 },                    // 开关在 config.periodEnabled
   customFields: [],                                           // [{id,label,value}]
   story: ''                                                   // 我们的故事
 };
@@ -225,6 +223,7 @@ function profileRouter(store) {
       customFields: Array.isArray(b.customFields) ? b.customFields : cur.customFields,
       story: typeof b.story === 'string' ? b.story : cur.story
     };
+    delete next.period.enabled;
     // lastCycles 保留最近 12 条且合法
     if (next.period.lastCycles) {
       next.period.lastCycles = next.period.lastCycles
@@ -468,6 +467,6 @@ async function ensureIndex(collection, mediaDir, thumbDir) {
 module.exports = {
   preferencesRouter, peopleRouter, eventsRouter, wishesRouter, giftsRouter, albumsRouter,
   profileRouter, memoriesRouter, ensureIndex, PROFILE_DEFAULT,
-  PREF_POLARITY, PREF_CATEGORY, PEOPLE_GROUP, EVENT_TYPE, WISH_STATUS, WISH_PRIORITY, GIFT_DIRECTION,
+  PREF_POLARITIES, PREF_CATEGORIES, PEOPLE_GROUPS, EVENT_TYPES, WISH_STATUSES, WISH_PRIORITIES, GIFT_DIRECTIONS,
   MAX_IMAGE_SIZE, MAX_VIDEO_SIZE, MAX_UPLOAD_FILES, MAX_UPLOAD_BATCH_SIZE, MAX_UPLOAD_REQUEST_SIZE, rejectOversizedUploadRequest
 };

@@ -89,3 +89,21 @@ test('邮件提醒配置校验接收邮箱并持久化发送时间', async () =>
     server.close();
   }
 });
+test('配置接口不再暴露 hasPassword，并在保存时清理 legacy auth', async () => {
+  const { server, state } = await startServer({ auth: { legacy: true } });
+  try {
+    const before = await fetch(`http://127.0.0.1:${server.address().port}/api/config`);
+    const beforeBody = await before.json();
+    assert.equal(Object.hasOwn(beforeBody, 'hasPassword'), false);
+    assert.equal(Object.hasOwn(beforeBody, 'auth'), false);
+
+    const saved = await fetch(`http://127.0.0.1:${server.address().port}/api/config`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subjectName: '新称呼' })
+    });
+    assert.equal(saved.status, 200);
+    assert.equal(state.data.auth, undefined);
+  } finally {
+    server.close();
+  }
+});

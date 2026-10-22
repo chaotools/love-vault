@@ -6,14 +6,8 @@ const https = require('https');
 const { decryptApiKey } = require('./secrets');
 const { formatDate, shanghaiParts, TIME_ZONE } = require('./date-resolution');
 
-const PROVIDERS = {
-  zhipu:    { name: '智谱 GLM',   baseUrl: 'https://open.bigmodel.cn/api/paas/v4',            models: ['glm-4-plus', 'glm-4-air', 'glm-4-flash'] },
-  openai:   { name: 'OpenAI',     baseUrl: 'https://api.openai.com/v1',                        models: ['gpt-4o-mini', 'gpt-4o'] },
-  deepseek: { name: 'DeepSeek',   baseUrl: 'https://api.deepseek.com',                         models: ['deepseek-chat', 'deepseek-reasoner'] },
-  moonshot: { name: 'Kimi 月之暗面', baseUrl: 'https://api.moonshot.cn/v1',                    models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'] },
-  qwen:     { name: '通义千问',    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', models: ['qwen-plus', 'qwen-turbo', 'qwen-max'] },
-  custom:   { name: '自定义（任意 OpenAI 兼容接口）', baseUrl: '', models: [] }
-};
+// 前后端共用同一份供应商配置，避免模型列表和默认地址漂移。
+const PROVIDERS = require('../public/js/ai-providers.json');
 
 function multiUserMode() {
   return Boolean(process.env.WEB_SESSION_SECRET || process.env.MOBILE_SERVICE_TOKEN);

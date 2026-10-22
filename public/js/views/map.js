@@ -1,5 +1,5 @@
 // 记忆地图：把大事记里已定位的地点展示在腾讯地图上
-import { el, get, emptyState, fmtDate, toast } from '../core.js';
+import { el, get, emptyState, fmtDate } from '../core.js';
 import { loadTencentMap } from '../tencent-map.mjs';
 
 const TYPES = ['里程碑', '约会', '旅行', '争吵与和解', '承诺', '其他'];

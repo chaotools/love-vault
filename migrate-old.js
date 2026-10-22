@@ -2,18 +2,9 @@
 // 用法：node migrate-old.js [旧项目路径]（默认尝试 ../love-memory）
 const fsp = require('fs/promises');
 const path = require('path');
-const { execFile } = require('child_process');
 
 const NEW_ROOT = __dirname;
 const OLD_ROOT = path.resolve(process.argv[2] || path.join(NEW_ROOT, '..', 'love-memory'));
-
-function execFileP(cmd, args) {
-  return new Promise((resolve, reject) => {
-    execFile(cmd, args, { maxBuffer: 64 * 1024 * 1024 }, (err, stdout, stderr) => {
-      if (err) reject(new Error(stderr || err.message)); else resolve({ stdout, stderr });
-    });
-  });
-}
 
 async function main() {
   const oldData = path.join(OLD_ROOT, 'data');

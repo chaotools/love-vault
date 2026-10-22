@@ -3,32 +3,16 @@
 // 返回 { year, month, days: { "MM-DD": [items...] } }
 const express = require('express');
 const lunar = require('../lunar');
+const { periodDateInMonth } = require('../period');
 
-const DAY = 86400000;
-const TIME_ZONE = 'Asia/Shanghai';
-const datePartsFormatter = new Intl.DateTimeFormat('en-CA', {
-  timeZone: TIME_ZONE,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit'
-});
-const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-// 网站面向中国用户，日期绝不能跟随容器所在时区。ISO 时间在 UTC 容器里直接取
-// getDate() 会把北京时间凌晨的照片归到前一天，因此统一明确按上海时间分组。
-function shanghaiParts(date) {
-  const parts = datePartsFormatter.formatToParts(date);
-  const get = (type) => Number(parts.find((part) => part.type === type).value);
-  return { year: get('year'), month: get('month'), day: get('day') };
-}
+const { shanghaiParts, shanghaiDate: shanghaiDateAt } = require('../date-resolution');
 
 function dayKey({ year, month, day }) {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 // 用上海中午构造一个稳定的日期对象，避免在任意部署时区中跨日。
-function shanghaiDate(year, month, day) {
-  return new Date(`${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T12:00:00+08:00`);
-}
+const shanghaiDate = (year, month, day) => shanghaiDateAt({ year, month, day }, 12);
 
 function calendarRouter(getData) {
   const r = express.Router();
@@ -131,27 +115,9 @@ function calendarRouter(getData) {
     }
 
     // 5. 生理期预测（若开启且本月有预测日）
-    if (config.periodEnabled && profile.period &&
-        Array.isArray(profile.period.lastCycles) && profile.period.lastCycles.length) {
-      const last = new Date(profile.period.lastCycles.slice().sort().pop());
-      if (!isNaN(last.getTime())) {
-        const avg = profile.period.avgDays || 28;
-        // 从最近一次经期往前推到本月的所有预测日（避免只算一次）
-        let cursor = startOfDay(last);
-        let guard = 0;
-        while (guard++ < 60) {
-          const next = new Date(cursor.getTime() + avg * DAY);
-          if (next.getFullYear() > year || (next.getFullYear() === year && next.getMonth() > month - 1)) break;
-          cursor = next;
-        }
-        // cursor 现在是本月或更早最近一次预测日；若在更早，再往后推到本月
-        while (cursor.getFullYear() < year || (cursor.getFullYear() === year && cursor.getMonth() < month - 1)) {
-          cursor = new Date(cursor.getTime() + avg * DAY);
-        }
-        if (cursor.getFullYear() === year && cursor.getMonth() === month - 1) {
-          push('period', 'period', '预计生理期', '温柔一点，提前准备好红糖热水', cursor);
-        }
-      }
+    if (config.periodEnabled && profile.period) {
+      const prediction = periodDateInMonth(profile.period, year, month);
+      if (prediction) push('period', 'period', '预计生理期', '温柔一点，提前准备好红糖热水', prediction);
     }
 
     res.json({ year, month, days: items });

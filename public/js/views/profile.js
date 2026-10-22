@@ -300,12 +300,10 @@ function editCustom(f) {
 function storyEditor() {
   const ta = el('textarea', { placeholder: `怎么认识的、第一次约会说了什么、${subjectLabel()}哪一点打动了你……写下来，越早写越清楚。` });
   ta.value = profile.story || '';
-  let dirty = false;
-  ta.addEventListener('input', () => { dirty = true; });
   const saveBtn = el('button', {
     class: 'small-btn', text: '保存', onclick: async () => {
       profile = await put('/api/profile', { story: ta.value });
-      dirty = false; toast('故事已保存 💕');
+      toast('故事已保存 💕');
     }
   });
   return el('div', null, ta, el('div', { style: 'margin-top:12px;text-align:right' }, saveBtn));

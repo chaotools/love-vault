@@ -1,5 +1,5 @@
 // 应用主控：启动、路由、全局搜索、随手记、设置、登录、首屏
-import { el, get, post, toast, store, openModal, field, input, select, fmtDate, initLightbox, pad, subjectLabel, quickWishSource } from './core.js';
+import { el, get, post, toast, store, openModal, field, input, select, initLightbox, pad, subjectLabel, quickWishSource } from './core.js';
 import { lunarDateText, nextOccurrence, daysUntil } from './lunar.js';
 import { shouldStartWebLogin, authScopeFromStatus } from './auth-state.mjs';
 import { initializeChatHistoryStorage } from './chat-history.mjs';
@@ -456,7 +456,6 @@ async function openSettings() {
   const cfg = await get('/api/config');
   const aiStatus = await get('/api/ask/status');
   const emailStatusInfo = await get('/api/notifications/status').catch(() => null);
-  const aiPresetBaseUrls = {};
   const providersResp = await fetch('/js/ai-providers.json').then((r) => r.json()).catch(() => ({}));
 
   // —— 基本区 ——
