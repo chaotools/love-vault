@@ -45,3 +45,9 @@ test('实况照片接口与前端播放入口已接线', () => {
   assert.match(core, /m\.motionUrl/);
   assert.match(timeline, /live-badge/);
 });
+test('实况照片静态预览被完整限制在灯箱可视区域内', () => {
+  const root = path.join(__dirname, '..');
+  const css = fs.readFileSync(path.join(root, 'public/style.css'), 'utf8');
+  assert.match(css, /\.lb-live \{[^}]*width: 100%;[^}]*height: 100%;/s);
+  assert.match(css, /\.lb-live > img \{[^}]*width: auto;[^}]*height: auto;[^}]*max-height: 100%;/s);
+});
