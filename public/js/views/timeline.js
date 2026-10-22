@@ -348,7 +348,7 @@ function openUpload() {
     el('div', { class: 'dz-icon', text: '📷' }),
     el('p', { text: '拖拽照片 / 视频到这里' }),
     el('p', { class: 'sub', text: '或点击选择文件 · 照片≤50 MB / 视频≤500 MB · 支持多选 · 可逐张填写实际拍摄时间' }),
-    el('p', { class: 'sub', text: '实况照片：iPhone 请同时选择同名的 HEIC/JPG 与 MOV；安卓/鸿蒙单张动态照片可直接上传' }));
+    el('p', { class: 'sub', text: '实况照片：iPhone/安卓/鸿蒙原图可直接上传；如 iPhone 导出为 HEIC/JPG + MOV，请同时选择同名文件' }));
   const fi = input({ type: 'file', multiple: true, accept: 'image/*,video/*', hidden: true });
   dz.append(fi);
   const filesEl = el('div', { class: 'upload-files', hidden: true });

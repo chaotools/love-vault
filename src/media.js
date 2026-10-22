@@ -168,7 +168,7 @@ async function generateVideoCover(src, dest, duration) {
 function findMotionPhotoPayload(buffer) {
   const text = buffer.toString('latin1');
   if (!/Camera:MotionPhoto=["']1["']|MZCamera:LivePhoto=["']/.test(text)) return null;
-  const match = text.match(/Item:Mime=["']video\/mp4["'][\s\S]{0,500}?Item:Length=["'](\d+)["']/);
+  const match = text.match(/Item:Mime=["']video\/mp4["'][\s\S]{0,500}?Item:Length=["'](\d+)["']/i);
   if (!match) return null;
   const length = Number(match[1]);
   if (!Number.isInteger(length) || length <= 0 || length >= buffer.length) return null;

@@ -16,6 +16,14 @@ test('识别 Meizu/Google Motion Photo 的内嵌 MP4 偏移', () => {
   assert.deepEqual(result, { offset: buffer.length - video.length, length: video.length });
 });
 
+test('识别 iPhone 导出的 video/MP4 大写 XMP 标记', () => {
+  const video = Buffer.from('00000018667479706d70343200000000', 'hex');
+  const xmp = Buffer.from(`<x:xmpmeta Camera:MotionPhoto="1"><Container:Item Item:Mime="video/MP4" Item:Semantic="MotionPhoto" Item:Length="${video.length}"/></x:xmpmeta>`, 'latin1');
+  const buffer = Buffer.concat([Buffer.from([0xff, 0xd8]), xmp, Buffer.from([0xff, 0xd9]), video]);
+  const result = findMotionPhotoPayload(buffer);
+  assert.deepEqual(result, { offset: buffer.length - video.length, length: video.length });
+});
+
 test('普通 JPEG 不会被误判为动态照片', () => {
   assert.equal(findMotionPhotoPayload(Buffer.from([0xff, 0xd8, 0x01, 0x02, 0xff, 0xd9])), null);
 });
