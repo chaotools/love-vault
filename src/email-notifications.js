@@ -5,6 +5,7 @@ const nodemailer = require('nodemailer');
 const { JsonStore } = require('./store');
 const { computeReminders } = require('./reminders');
 const { shanghaiParts, formatDate } = require('./date-resolution');
+const { snapshotVault } = require('./vault-snapshot');
 
 const DEFAULT_NOTIFICATIONS = Object.freeze({
   emailEnabled: false,
@@ -129,20 +130,6 @@ function buildTestEmail(to) {
     subject: '💕 爱人记忆库测试邮件',
     text: `这是一封 Love Vault 测试邮件。\n\n接收地址：${recipient}\n如果你收到这封邮件，说明 SMTP 配置正常。`,
     html: `<div style="font-family:sans-serif;line-height:1.7;color:#2c2024"><h2 style="color:#b84a65">💕 爱人记忆库测试邮件</h2><p>接收地址：${escapeHtml(recipient)}</p><p>如果你收到这封邮件，说明 SMTP 配置正常。</p></div>`
-  };
-}
-
-function snapshotVault(vault) {
-  return {
-    config: vault.config.data,
-    profile: vault.profile.data,
-    preferences: vault.preferences.list(),
-    people: vault.people.list(),
-    events: vault.events.list(),
-    wishes: vault.wishes.list(),
-    gifts: vault.gifts.list(),
-    albums: vault.albums.list(),
-    memories: vault.memories.list().slice().sort((a, b) => (b.takenAt || '').localeCompare(a.takenAt || ''))
   };
 }
 

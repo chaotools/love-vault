@@ -4,11 +4,7 @@ const ai = require('../ai');
 const { resolveEventDate } = require('../date-resolution');
 const { rateLimit } = require('../rate-limit');
 
-const PREF_CATEGORIES = ['吃', '喝', '穿', '用', '玩', '其他'];
-const EVENT_TYPES = ['里程碑', '约会', '旅行', '争吵与和解', '承诺', '其他'];
-const PEOPLE_GROUPS = ['家人', '朋友', '同事', '其他'];
-const WISH_STATUSES = ['想要', '计划', '已实现'];
-const GIFT_DIRECTIONS = ['送给TA', 'TA送我'];
+const { EVENT_TYPES, PEOPLE_GROUPS, GIFT_DIRECTIONS, PREF_CATEGORIES, PREF_POLARITIES } = require('../domain');
 
 // 工具 schema（OpenAI function calling 格式）。category/type/group 等字段
 // 由服务端白名单兜底，模型传错时回退默认值而不是报错。
@@ -21,7 +17,7 @@ const TOOLS = [
       parameters: {
         type: 'object',
         properties: {
-          polarity: { type: 'string', enum: ['喜欢', '不喜欢'], description: '是喜欢还是不喜欢' },
+          polarity: { type: 'string', enum: PREF_POLARITIES, description: '是喜欢还是不喜欢' },
           category: { type: 'string', enum: PREF_CATEGORIES, description: '所属分类' },
           title: { type: 'string', description: '内容，如：杨枝甘露' },
           detail: { type: 'string', description: '细节，如：三分糖去冰' }
@@ -147,7 +143,7 @@ async function executeTool(name, args, vault, { requestToolCalls, userDateText, 
     case 'addPreference': {
       const title = sanitize(args.title);
       if (!title) return fail('缺少偏好内容');
-      const polarity = inEnum(args.polarity, ['喜欢', '不喜欢'], '喜欢');
+      const polarity = inEnum(args.polarity, PREF_POLARITIES, '喜欢');
       const repeated = repeatedInRequest(`preference:${polarity}:${normalizeIdentity(title)}`, 'preferences', title);
       if (repeated) return repeated;
       if (list(vault.preferences).some((p) => p.title === title && p.polarity === polarity)) {

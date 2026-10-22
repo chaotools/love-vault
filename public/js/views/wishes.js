@@ -1,5 +1,5 @@
 // 愿望 & 礼物 & 约会灵感：想要清单、礼物双向记录、随机抽卡
-import { el, get, post, patch, del, toast, openModal, field, input, select, textarea, fmtDate, emptyState, store, subjectLabel } from '../core.js';
+import { el, get, post, patch, del, toast, openModal, field, input, select, textarea, fmtDate, emptyState, subjectLabel } from '../core.js';
 
 const STATUSES = ['想要', '计划', '已实现'];
 const PRIORITIES = ['高', '中', '低'];

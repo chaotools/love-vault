@@ -151,21 +151,26 @@ npm run migrate-old          # 自动导入旧照片/视频/配置，旧项目�
 
 ```
 server.js            入口（Express，零机器绑定）
-src/store.js         JSON 原子持久化
-src/media.js         EXIF/缩略图/视频封面/HEIC
-src/ai.js            多供应商大模型（OpenAI 兼容协议单点封装）
-src/auth.js          小程序服务令牌、扫码网页登录会话与本地模式边界
-src/user-data.js     按用户隔离的 JSON 存储、媒体目录与旧数据迁移
-src/routes/          REST API（内容、搜索、AI、相册、日历、统计、导入导出等）
+src/store.js             JSON 原子持久化
+src/media.js             EXIF/缩略图/视频封面/HEIC/动态照片
+src/period.js            生理期纯计算（提醒/日历/统计共用）
+src/domain.js            服务端共享领域枚举
+src/vault-snapshot.js    保险库统一只读快照
+src/ai.js                多供应商大模型（OpenAI 兼容协议单点封装）
+src/auth.js              小程序服务令牌、扫码网页登录会话与本地模式边界
+src/email-notifications.js 邮件摘要与 SMTP 调度
+src/tencent-map.js       腾讯地点搜索/逆地址解析
+src/user-data.js         按用户隔离的 JSON 存储、媒体目录与旧数据迁移
+src/routes/              REST API（内容、搜索、AI、地图、通知、日历、统计、导入导出等）
 public/              前端（原生 ES Modules，无构建）
 data/                ★ 全部记忆（多用户时为 users/<内部 UUID>/）
 ```
 
 ## 数据模型速览
 
-- `config.json`：标题、名字、记忆主角称呼 `subjectName`、纪念日与 AI 配置（保存的 AI API Key 不会随导出包迁移）
-- `profile.json`：basics（身高/体重/尺码…）+ health + period + 自定义字段 + story
-- `preferences.json` / `people.json` / `events.json` / `wishes.json` / `gifts.json` / `memories.json`
+- `config.json`：标题、名字、记忆主角称呼 `subjectName`、纪念日、AI 配置与邮件提醒配置（保存的 AI API Key 不会随导出包迁移）
+- `profile.json`：basics（身高/体重/尺码…）+ health + period（`lastCycles`/`avgDays`，全局开关在 `config.periodEnabled`）+ 自定义字段 + story
+- `preferences.json` / `people.json` / `events.json` / `wishes.json` / `gifts.json` / `memories.json`；大事记可带 `geo`，动态照片记录带 `motion` 元数据
 
 `config.subjectName` 是网站展示和 AI 回答使用的全局记忆主角称呼，保存时会自动去除首尾空格并限制为 30 个字符；
 留空或旧配置缺少该字段时显示 `TA`。它与 `profile.basics.nickname` 相互独立，不改变数据中的内部 `TA` 关系语义。

@@ -20,6 +20,7 @@ const { transferRouter } = require('./src/routes/transfer');
 const { calendarRouter } = require('./src/routes/calendar');
 const { computeReminders } = require('./src/reminders');
 const { UserDataManager, buildVault, loadVault, migrateLegacyTo } = require('./src/user-data');
+const { snapshotVault } = require('./src/vault-snapshot');
 const { migrateStoredApiKeys } = require('./src/secrets');
 const { rateLimit } = require('./src/rate-limit');
 const { resolveHost, shouldWarnUnauthExposure } = require('./src/runtime-config');
@@ -38,10 +39,7 @@ const PUBLIC_DIR = path.join(ROOT, 'public');
 const legacyVault = buildVault(DATA_DIR);
 const users = new UserDataManager(DATA_DIR);
 
-const getData = (req) => {
-  const v = req.vault;
-  return { config: v.config.data, profile: v.profile.data, preferences: v.preferences.list(), people: v.people.list(), events: v.events.list(), wishes: v.wishes.list(), gifts: v.gifts.list(), albums: v.albums.list(), memories: v.memories.list().slice().sort((a, b) => (b.takenAt || '').localeCompare(a.takenAt || '')) };
-};
+const getData = (req) => snapshotVault(req.vault);
 
 // 认证之后挂载当前请求对应的保险库（本地模式 → data/ 根目录；多用户 → 各自目录）
 async function attachVault(req, res, next) {

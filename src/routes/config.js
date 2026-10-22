@@ -13,8 +13,7 @@ const DEFAULT_CONFIG = {
   memorialDays: [],          // [{name, date}]
   periodEnabled: false,      // 生理期记录开关（首页提醒用）
   notifications: { ...DEFAULT_NOTIFICATIONS },
-  ai: { provider: 'zhipu', baseUrl: '', apiKey: '', model: '', privacy: { health: false, period: false } },
-  auth: undefined            // 历史遗留字段，已无密码功能
+  ai: { provider: 'zhipu', baseUrl: '', apiKey: '', model: '', privacy: { health: false, period: false } }
 };
 
 const normalizeSubjectName = (value) => typeof value === 'string' ? value.trim().slice(0, 30) : '';
@@ -25,14 +24,13 @@ function configRouter(store, save) {
 
   // API Key 只用于服务器向模型供应商发请求；不要因打开设置页面而回传给浏览器。
   const publicConfig = (config) => {
-    const { auth, ai = {}, ...safe } = config;
+    const { auth: _legacyAuth, ai = {}, ...safe } = config;
     return {
       ...DEFAULT_CONFIG,
       ...safe,
       subjectName: normalizeSubjectName(config.subjectName),
       notifications: normalizeNotificationSettings(config.notifications || DEFAULT_CONFIG.notifications),
-      ai: { ...DEFAULT_CONFIG.ai, ...ai, apiKey: '', hasApiKey: Boolean(ai.apiKey) },
-      hasPassword: Boolean(auth)
+      ai: { ...DEFAULT_CONFIG.ai, ...ai, apiKey: '', hasApiKey: Boolean(ai.apiKey) }
     };
   };
 
@@ -44,6 +42,7 @@ function configRouter(store, save) {
     const currentStore = resolve(req);
     const previousConfig = currentStore.data;
     const config = { ...previousConfig };
+    delete config.auth;
     const b = req.body || {};
     for (const k of ['title', 'names', 'anniversary', 'music']) {
       if (typeof b[k] === 'string') config[k] = b[k];

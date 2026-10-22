@@ -1,6 +1,7 @@
 // 统计接口：给"统计"视图提供聚合数据，全部在内存里算，不落盘
 const express = require('express');
 const { shanghaiParts, shanghaiStartOfDay, shanghaiMonthKey } = require('../date-resolution');
+const { periodStats } = require('../period');
 
 function monthKey(iso) {
   const d = new Date(iso);
@@ -76,16 +77,7 @@ function statsRouter(getData) {
     const topTags = Object.entries(tagCount).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([tag, count]) => ({ tag, count }));
 
     // 生理期统计（开启且记录 ≥2 条时给出平均周期）
-    let periodStat = null;
-    if (config.periodEnabled && profile.period && Array.isArray(profile.period.lastCycles) && profile.period.lastCycles.length >= 2) {
-      const cycles = profile.period.lastCycles.slice().sort();
-      const gaps = [];
-      for (let i = 1; i < cycles.length; i++) {
-        gaps.push(Math.round((new Date(cycles[i]) - new Date(cycles[i - 1])) / 86400000));
-      }
-      const sum = gaps.reduce((a, b) => a + b, 0);
-      periodStat = { count: cycles.length, avgGap: Math.round(sum / gaps.length) };
-    }
+    const periodStat = config.periodEnabled && profile.period ? periodStats(profile.period) : null;
 
     // —— 记录统计增强 ——
 

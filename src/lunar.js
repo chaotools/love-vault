@@ -3,7 +3,6 @@
 // 中文格式直接给出"正月 / 闰二月"等名称。
 const { TIME_ZONE, shanghaiParts, shanghaiDate, shanghaiStartOfDay, formatDate } = require('./date-resolution');
 const EN = new Intl.DateTimeFormat('en-u-ca-chinese', { year: 'numeric', month: 'numeric', day: 'numeric', timeZone: TIME_ZONE });
-const ZH = new Intl.DateTimeFormat('zh-CN-u-ca-chinese', { year: 'numeric', month: 'numeric', day: 'numeric', timeZone: TIME_ZONE });
 
 const MONTH_NAMES = ['', '正月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '冬月', '腊月'];
 const DAY_NAMES = ['', '初一', '初二', '初三', '初四', '初五', '初六', '初七', '初八', '初九', '初十',
