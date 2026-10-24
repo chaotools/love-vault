@@ -1,8 +1,8 @@
-// 爱人记忆库 · Love Vault
+// 月匣 · Moonbox
 // 环境变量：PORT(默认3000) / HOST(默认127.0.0.1) / DATA_DIR(默认./data)
 // 反向代理 HTTPS：TRUST_PROXY=1（让安全 Cookie 识别 X-Forwarded-Proto）
 // AI 覆盖：AI_BASE_URL / AI_API_KEY / AI_MODEL
-// 多用户模式：WEB_SESSION_SECRET / MOBILE_SERVICE_TOKEN（均未配置时退回本地单用户模式，数据用 data/ 根目录）
+// 多用户模式：WEB_SESSION_SECRET / MOONBOX_SERVICE_TOKEN（均未配置时退回本地单用户模式，数据用 data/ 根目录）
 // 旧版数据迁移：LEGACY_USER_ID=<用户ID>，启动时把 data/ 根目录的旧布局移入该用户目录（只执行一次）
 const express = require('express');
 const fsp = require('fs/promises');
@@ -138,7 +138,7 @@ function openBrowser(url) {
 
 function listen(port) {
   const server = app.listen(port, HOST, () => {
-    console.log('\n  💕 爱人记忆库已启动');
+    console.log('\n  💕 月匣已启动');
     console.log('  本机访问:  http://localhost:' + port);
     if (HOST === '0.0.0.0') {
       console.log('  局域网/服务器: 用本机 IP 访问同一端口（手机同 WiFi 可打开）');

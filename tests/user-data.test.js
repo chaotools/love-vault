@@ -7,7 +7,7 @@ const { UserDataManager, migrateLegacyTo } = require('../src/user-data');
 const { requireAuth, LOCAL_USER_ID } = require('../src/auth');
 
 test('不同用户获得相互隔离的存储，且并发请求复用同一保险库', async () => {
-  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'love-vault-test-'));
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'moonbox-test-'));
   try {
     const users = new UserDataManager(root);
     const a = await users.get('11111111-1111-4111-8111-111111111111');
@@ -44,7 +44,7 @@ test('不同用户获得相互隔离的存储，且并发请求复用同一保�
 });
 
 test('旧版根目录数据迁移到指定用户目录，可恢复且不覆盖已有文件', async () => {
-  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'love-vault-migrate-'));
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'moonbox-migrate-'));
   try {
     await fsp.writeFile(path.join(root, 'config.json'), JSON.stringify({ title: '旧数据' }));
     await fsp.mkdir(path.join(root, 'media'));
@@ -72,7 +72,7 @@ test('旧版根目录数据迁移到指定用户目录，可恢复且不覆盖�
 });
 
 test('旧数据迁移在已移动部分项目后可继续完成', async () => {
-  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'love-vault-resume-'));
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'moonbox-resume-'));
   try {
     const userId = '44444444-4444-4444-8444-444444444444';
     const dst = path.join(root, 'users', userId);
@@ -91,9 +91,9 @@ test('旧数据迁移在已移动部分项目后可继续完成', async () => {
 
 test('未配置认证环境变量时以本地模式放行', () => {
   const prevSecret = process.env.WEB_SESSION_SECRET;
-  const prevToken = process.env.MOBILE_SERVICE_TOKEN;
+  const prevToken = process.env.MOONBOX_SERVICE_TOKEN;
   delete process.env.WEB_SESSION_SECRET;
-  delete process.env.MOBILE_SERVICE_TOKEN;
+  delete process.env.MOONBOX_SERVICE_TOKEN;
   try {
     let nextCalled = false;
     const req = { headers: {}, get: () => undefined };
@@ -103,7 +103,7 @@ test('未配置认证环境变量时以本地模式放行', () => {
   } finally {
     if (prevSecret === undefined) delete process.env.WEB_SESSION_SECRET;
     else process.env.WEB_SESSION_SECRET = prevSecret;
-    if (prevToken === undefined) delete process.env.MOBILE_SERVICE_TOKEN;
-    else process.env.MOBILE_SERVICE_TOKEN = prevToken;
+    if (prevToken === undefined) delete process.env.MOONBOX_SERVICE_TOKEN;
+    else process.env.MOONBOX_SERVICE_TOKEN = prevToken;
   }
 });

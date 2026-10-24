@@ -44,7 +44,7 @@ async function zipBuffer(files) {
 }
 
 async function makeVault(extra = {}) {
-  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'love-vault-transfer-'));
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'moonbox-transfer-'));
   const vault = buildVault(root);
   await loadVault(vault);
   await vault.config.save();

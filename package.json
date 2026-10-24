@@ -1,7 +1,7 @@
 {
-  "name": "love-vault",
-  "version": "2.0.0",
-  "description": "爱人记忆库 —— TA 的一切，都在这里",
+  "name": "moonbox",
+  "version": "3.0.0",
+  "description": "月匣 —— 私人的文字与照片记忆库",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

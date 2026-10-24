@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT=/srv/love-vault
+ROOT=/srv/moonbox
 COMPOSE_FILE="$ROOT/docker-compose.yml"
 ENV_FILE="$ROOT/.env"
 RUNTIME_FILE="$ROOT/runtime.env"
@@ -14,7 +14,7 @@ mkdir -p "$ROOT/data" "$ROOT/backups"
 if [ -f "$RUNTIME_FILE" ]; then
   cp "$RUNTIME_FILE" "$PREVIOUS_FILE"
 fi
-printf 'LOVE_VAULT_TAG=%s\n' "$TAG" > "$RUNTIME_FILE"
+printf 'MOONBOX_TAG=%s\n' "$TAG" > "$RUNTIME_FILE"
 
 rollback() {
   echo 'Deployment failed; restoring previous image tag.' >&2
@@ -37,5 +37,5 @@ for _ in {1..20}; do
   sleep 3
 done
 
-echo 'Love Vault health check timed out.' >&2
+echo '月匣 health check timed out.' >&2
 exit 1

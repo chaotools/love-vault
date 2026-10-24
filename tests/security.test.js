@@ -125,7 +125,7 @@ test('AI 上下文包含自定义主角称呼，同时保留 TA 关系字段兼�
 });
 
 test('启动迁移会加密主库、用户库及 .bak 中的明文 API Key', async () => {
-  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'love-vault-key-migration-'));
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'moonbox-key-migration-'));
   const previous = process.env.VAULT_ENC_KEY;
   process.env.VAULT_ENC_KEY = 'migration-key';
   try {

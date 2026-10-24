@@ -1,5 +1,5 @@
-# 爱人记忆库 · Love Vault
-# 任意服务器可复现：docker build -t love-vault . && docker compose up -d
+# 月匣 · Moonbox
+# 任意服务器可复现：docker build -t moonbox . && docker compose up -d
 FROM node:20-bookworm-slim
 
 # ffmpeg：视频封面提取 + HEIC 转换

@@ -27,9 +27,9 @@ test('写入限流按用户拒绝超额请求，读取请求不计入', () => {
 });
 
 test('多用户模式允许公网自定义供应商，但拒绝危险地址并忽略历史配置', async () => {
-  const oldToken = process.env.MOBILE_SERVICE_TOKEN;
+  const oldToken = process.env.MOONBOX_SERVICE_TOKEN;
   try {
-    process.env.MOBILE_SERVICE_TOKEN = 'test-token';
+    process.env.MOONBOX_SERVICE_TOKEN = 'test-token';
     assert.equal(validateUserAiSettings({ provider: 'custom', baseUrl: 'https://ai.example/v1' }).ok, true);
     assert.equal(validateUserAiSettings({ provider: 'custom', baseUrl: 'http://127.0.0.1:8080' }).ok, false);
     assert.equal(validateUserAiSettings({ provider: 'openai', baseUrl: 'http://127.0.0.1:8080' }).ok, false);
@@ -44,8 +44,8 @@ test('多用户模式允许公网自定义供应商，但拒绝危险地址并�
     assert.equal(isPublicIp('2001:4860:4860::8888'), true);
     assert.equal((await validateUserAiSettingsAsync({ provider: 'custom', baseUrl: 'https://127.0.0.1/v1' })).ok, false);
   } finally {
-    if (oldToken === undefined) delete process.env.MOBILE_SERVICE_TOKEN;
-    else process.env.MOBILE_SERVICE_TOKEN = oldToken;
+    if (oldToken === undefined) delete process.env.MOONBOX_SERVICE_TOKEN;
+    else process.env.MOONBOX_SERVICE_TOKEN = oldToken;
   }
 });
 

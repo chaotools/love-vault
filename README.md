@@ -1,4 +1,4 @@
-# 爱人记忆库 💕
+# 月匣 💕
 
 > TA 的一切，都在这里 —— 身高体重尺码健康、爱吃的讨厌的、身边的人、大事记与承诺、愿望与礼物、照片视频，还有一个读得懂这一切的 AI。
 
@@ -50,8 +50,8 @@ npm audit --omit=dev
 当前生产方案使用 CNB 容器镜像、Nginx HTTPS 和小程序后端的登录桥接：
 
 ```text
-小程序 ──微信登录──> 小程序后端 ──内部服务令牌 + user_id──> Love Vault
-网页 ──扫码确认──> 小程序后端 ──一次性凭证──> Love Vault 会话 Cookie
+小程序 ──微信登录──> 小程序后端 ──内部服务令牌 + user_id──> 月匣
+网页 ──扫码确认──> 小程序后端 ──一次性凭证──> 月匣 会话 Cookie
 ```
 
 每个 OpenID 只映射到一个随机内部 `user_id`。OpenID 不会写入媒体目录或暴露给网页；用户之间不能查看、搜索或猜测读取对方的内容。
@@ -61,7 +61,7 @@ npm audit --omit=dev
 ### 本地 Docker 试运行
 
 ```bash
-git clone <你的仓库> love-vault && cd love-vault
+git clone <你的仓库> moonbox && cd moonbox
 docker compose up --build     # 访问 http://localhost:3000
 ```
 
@@ -71,7 +71,7 @@ docker compose up --build     # 访问 http://localhost:3000
 
 ```bash
 npm ci
-pm2 start server.js --name love-vault
+pm2 start server.js --name moonbox
 pm2 save && pm2 startup
 ```
 
@@ -84,9 +84,9 @@ pm2 save && pm2 startup
 | `DATA_DIR` | ./data | 数据目录（可指到独立磁盘/挂载卷） |
 | `AI_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | - | AI 配置，优先级高于网页设置（Key 不落盘场景） |
 | `TRUST_PROXY` | - | HTTPS 反向代理时设为 `1`，让会话 Cookie 正确标记为 Secure |
-| `MOBILE_SERVICE_TOKEN` | - | 小程序后端与 Love Vault 之间的内部服务令牌；仅存于服务器环境变量，绝不能发送给小程序 |
+| `MOONBOX_SERVICE_TOKEN` | - | 小程序后端与 月匣 之间的内部服务令牌；仅存于服务器环境变量，绝不能发送给小程序 |
 | `WEB_SESSION_SECRET` | - | 用于签发网页扫码登录会话的高强度密钥；生产环境必须设置 |
-| `AUTH_BROKER_URL` | - | 小程序后端的 Love Vault 登录桥接地址；网页扫码登录需要它 |
+| `AUTH_BROKER_URL` | - | 小程序后端的 月匣 登录桥接地址；网页扫码登录需要它 |
 | `LEGACY_USER_ID` | - | 可选。将旧版 `data/` 根目录数据迁移至指定 UUID 用户目录；迁移可恢复且不会覆盖已有文件 |
 | `PUBLIC_ORIGIN` | - | 公网网页地址，例如 `https://love.chaotools.tech`；生产环境用于严格 CSRF Origin 校验 |
 | `VAULT_ENC_KEY` | - | 生产环境必须设置的高熵密钥。网页保存的 AI API Key 会以 AES-256-GCM 加密落盘，启动时自动迁移已有明文配置与 `.bak` 备份；丢失或更换该密钥会使既有 Key 无法使用 |
@@ -101,13 +101,13 @@ pm2 save && pm2 startup
 
 记忆地图使用腾讯位置服务：网页地图 Key 放 `TENCENT_MAP_JS_KEY`，服务端地点搜索 Key 放 `TENCENT_MAP_WEBSERVICE_KEY`。建议两个 Key 分别设置 IP/域名白名单，服务端 Key 不应出现在浏览器。
 
-AI 设置支持内置供应商和自定义 OpenAI 兼容接口。服务器多用户模式下，自定义接口必须是 HTTPS 公网域名并使用 443 端口；保存时会解析 DNS，拒绝环回、内网、链路本地、保留和组播地址，实际请求也禁止跟随跳转。这样无需把所有供应商硬编码，同时避免把 Love Vault 变成访问内网的 SSRF 代理。服务器本机的 Ollama、HTTP 接口或其他受信任内网网关，应通过 `AI_BASE_URL`、`AI_API_KEY`、`AI_MODEL` 由管理员统一配置。
+AI 设置支持内置供应商和自定义 OpenAI 兼容接口。服务器多用户模式下，自定义接口必须是 HTTPS 公网域名并使用 443 端口；保存时会解析 DNS，拒绝环回、内网、链路本地、保留和组播地址，实际请求也禁止跟随跳转。这样无需把所有供应商硬编码，同时避免把 月匣 变成访问内网的 SSRF 代理。服务器本机的 Ollama、HTTP 接口或其他受信任内网网关，应通过 `AI_BASE_URL`、`AI_API_KEY`、`AI_MODEL` 由管理员统一配置。
 
 AI 会通过受限工具记录结构化信息，而不是让模型直接写文件：目前可创建偏好、大事记、愿望、人物和礼物。每次写入会在对话中显示保存结果；重复的同一事实会被拒绝，不会重复写入。
 
 ### 小程序接入
 
-小程序不直接访问 Love Vault，也不持有网页 Cookie 或内部服务令牌。它先由现有后端验证微信
+小程序不直接访问 月匣，也不持有网页 Cookie 或内部服务令牌。它先由现有后端验证微信
 登录 Token，后端将 OpenID 映射为内部 UUID，再以内部服务令牌代理必要的文字、照片、搜索和
 媒体请求。任意有效微信用户首次使用时都会得到一个空的独立记忆库，不使用 OpenID 白名单。
 
@@ -116,8 +116,8 @@ AI 会通过受限工具记录结构化信息，而不是让模型直接写文�
 
 ### 安全（上服务器必读）
 
-1. **设置并保管密钥**：`MOBILE_SERVICE_TOKEN`、`WEB_SESSION_SECRET` 与 `VAULT_ENC_KEY` 必须是不同的高强度随机值，只放在服务器环境变量和 GitHub Secrets。迁移前先完成加密备份，之后不要随意轮换 `VAULT_ENC_KEY`。
-2. **只开放 Nginx 必要端口**：Love Vault 容器仅绑定 `127.0.0.1:3000`；小程序后端负责鉴权和媒体代理。
+1. **设置并保管密钥**：`MOONBOX_SERVICE_TOKEN`、`WEB_SESSION_SECRET` 与 `VAULT_ENC_KEY` 必须是不同的高强度随机值，只放在服务器环境变量和 GitHub Secrets。迁移前先完成加密备份，之后不要随意轮换 `VAULT_ENC_KEY`。
+2. **只开放 Nginx 必要端口**：月匣 容器仅绑定 `127.0.0.1:3000`；小程序后端负责鉴权和媒体代理。
 3. **上 HTTPS**：公网部署必须套一层反向代理。Nginx 示例配置见 [deploy/love.chaotools.tech.conf](deploy/love.chaotools.tech.conf)；反向代理部署时设 `TRUST_PROXY=1`，让登录 Cookie 保持 `Secure`。
 
 未登录访问网页 API 或媒体将返回 `401`；持有服务令牌但缺少合法内部 UUID 的请求同样会被拒绝。
