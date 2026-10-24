@@ -109,27 +109,27 @@ function buildDailyDigest(data, { now = new Date(), daysAhead = 7 } = {}) {
   if (!items.length) return null;
 
   const dateLabel = reminders.today.date;
-  const subject = `💕 ${dateLabel.slice(5).replace('-', '月')}日 爱人记忆库提醒`;
+  const subject = `💕 ${dateLabel.slice(5).replace('-', '月')}日 月匣提醒`;
   const lines = [
-    `Love Vault · ${dateLabel}`,
+    `月匣 · ${dateLabel}`,
     `农历：${reminders.today.lunar}`,
     '',
     '今天与近期提醒：',
     ...items.map((item) => `- ${digestWhen(item)}｜${item.title}${item.sub ? '（' + item.sub + '）' : ''}`),
     '',
-    '这封邮件由 Love Vault 自动发送。'
+    '这封邮件由 月匣 自动发送。'
   ];
   const rows = items.map((item) => `<li><strong>${escapeHtml(digestWhen(item))}</strong>｜${escapeHtml(item.title)}${item.sub ? '<span>（' + escapeHtml(item.sub) + '）</span>' : ''}</li>`).join('');
-  const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.7;color:#2c2024"><h2 style="color:#b84a65">💕 爱人记忆库提醒</h2><p>${escapeHtml(dateLabel)} · ${escapeHtml(reminders.today.lunar)}</p><h3>今天与近期提醒</h3><ul>${rows}</ul><p style="color:#7f6a70;font-size:12px">这封邮件由 Love Vault 自动发送。</p></div>`;
+  const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.7;color:#2c2024"><h2 style="color:#b84a65">💕 月匣提醒</h2><p>${escapeHtml(dateLabel)} · ${escapeHtml(reminders.today.lunar)}</p><h3>今天与近期提醒</h3><ul>${rows}</ul><p style="color:#7f6a70;font-size:12px">这封邮件由 月匣 自动发送。</p></div>`;
   return { subject, text: lines.join('\n'), html, items, today: reminders.today };
 }
 
 function buildTestEmail(to) {
   const recipient = Array.isArray(to) ? to.join(', ') : String(to || '');
   return {
-    subject: '💕 爱人记忆库测试邮件',
-    text: `这是一封 Love Vault 测试邮件。\n\n接收地址：${recipient}\n如果你收到这封邮件，说明 SMTP 配置正常。`,
-    html: `<div style="font-family:sans-serif;line-height:1.7;color:#2c2024"><h2 style="color:#b84a65">💕 爱人记忆库测试邮件</h2><p>接收地址：${escapeHtml(recipient)}</p><p>如果你收到这封邮件，说明 SMTP 配置正常。</p></div>`
+    subject: '💕 月匣测试邮件',
+    text: `这是一封 月匣 测试邮件。\n\n接收地址：${recipient}\n如果你收到这封邮件，说明 SMTP 配置正常。`,
+    html: `<div style="font-family:sans-serif;line-height:1.7;color:#2c2024"><h2 style="color:#b84a65">💕 月匣测试邮件</h2><p>接收地址：${escapeHtml(recipient)}</p><p>如果你收到这封邮件，说明 SMTP 配置正常。</p></div>`
   };
 }
 

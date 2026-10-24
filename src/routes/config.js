@@ -5,7 +5,7 @@ const { validateUserAiSettingsAsync } = require('../ai');
 const { DEFAULT_NOTIFICATIONS, normalizeNotificationSettings, validateNotificationSettings } = require('../email-notifications');
 
 const DEFAULT_CONFIG = {
-  title: '爱人记忆库',
+  title: '月匣',
   names: '',
   subjectName: '',
   anniversary: '',

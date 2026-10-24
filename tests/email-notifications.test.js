@@ -100,7 +100,7 @@ test('定时发送按用户去重，并且邮件内容可直接交给 SMTP', asy
   const first = await runScheduledEmailDigests({ vaults: [{ scope: 'local', vault }], email, state, now });
   assert.equal(first.length, 1);
   assert.equal(sent.length, 1);
-  assert.match(sent[0].subject, /爱人记忆库提醒/);
+  assert.match(sent[0].subject, /月匣提醒/);
   assert.deepEqual(sent[0].to, ['me@example.com']);
 
   const second = await runScheduledEmailDigests({ vaults: [{ scope: 'local', vault }], email, state, now });

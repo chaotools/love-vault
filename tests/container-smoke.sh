@@ -6,7 +6,7 @@ USER_ID='3aa6dbfc-a08c-4f27-9b13-96ee1891cb7c'
 SERVICE_TOKEN='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 SESSION_SECRET='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 VAULT_KEY='cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'
-CONTAINER="love-vault-ci-${GITHUB_RUN_ID:-local}-${RANDOM}"
+CONTAINER="moonbox-ci-${GITHUB_RUN_ID:-local}-${RANDOM}"
 FIXTURE="$(mktemp -d)"
 RUNNER_UID="$(id -u)"
 RUNNER_GID="$(id -g)"
@@ -43,9 +43,9 @@ docker run -d --name "$CONTAINER" \
   -e NODE_ENV=production \
   -e OPEN_BROWSER=0 \
   -e TRUST_PROXY=1 \
-  -e MOBILE_SERVICE_TOKEN="$SERVICE_TOKEN" \
+  -e MOONBOX_SERVICE_TOKEN="$SERVICE_TOKEN" \
   -e WEB_SESSION_SECRET="$SESSION_SECRET" \
-  -e AUTH_BROKER_URL=https://broker.example/api/love-vault \
+  -e AUTH_BROKER_URL=https://broker.example/api/moonbox \
   -e PUBLIC_ORIGIN=https://love.example \
   -e VAULT_ENC_KEY="$VAULT_KEY" \
   "$IMAGE" >/dev/null
@@ -64,8 +64,8 @@ curl --fail --silent --show-error "http://127.0.0.1:$PORT/api/auth/status" >/dev
 curl --fail --silent --show-error \
   -X POST "http://127.0.0.1:$PORT/api/config" \
   -H 'Content-Type: application/json' \
-  -H "X-Love-Vault-Service-Token: $SERVICE_TOKEN" \
-  -H "X-Love-Vault-User-Id: $USER_ID" \
+  -H "X-Moonbox-Service-Token: $SERVICE_TOKEN" \
+  -H "X-Moonbox-User-Id: $USER_ID" \
   --data '{"title":"CI write probe"}' >/dev/null
 
 grep -q '"title": "CI write probe"' "$USER_DIR/config.json"

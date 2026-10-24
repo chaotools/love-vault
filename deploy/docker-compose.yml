@@ -1,23 +1,23 @@
 services:
-  love-vault:
-    image: ${CNB_IMAGE:?set CNB_IMAGE in /srv/love-vault/.env}:${LOVE_VAULT_TAG:?set LOVE_VAULT_TAG in deploy/runtime.env}
-    container_name: love-vault
+  moonbox:
+    image: ${CNB_IMAGE:?set CNB_IMAGE in /srv/moonbox/.env}:${MOONBOX_TAG:?set MOONBOX_TAG in deploy/runtime.env}
+    container_name: moonbox
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
-      - /srv/love-vault/data:/app/data
+      - /srv/moonbox/data:/app/data
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
       TRUST_PROXY: 1
       COOKIE_SECURE: true
-      MOBILE_SERVICE_TOKEN: ${MOBILE_SERVICE_TOKEN:?set MOBILE_SERVICE_TOKEN in /srv/love-vault/.env}
-      WEB_SESSION_SECRET: ${WEB_SESSION_SECRET:?set WEB_SESSION_SECRET in /srv/love-vault/.env}
-      AUTH_BROKER_URL: ${AUTH_BROKER_URL:-http://host.docker.internal:8899/api/love-vault}
-      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?set PUBLIC_ORIGIN in /srv/love-vault/.env}
-      VAULT_ENC_KEY: ${VAULT_ENC_KEY:?set VAULT_ENC_KEY in /srv/love-vault/.env}
+      MOONBOX_SERVICE_TOKEN: ${MOONBOX_SERVICE_TOKEN:?set MOONBOX_SERVICE_TOKEN in /srv/moonbox/.env}
+      WEB_SESSION_SECRET: ${WEB_SESSION_SECRET:?set WEB_SESSION_SECRET in /srv/moonbox/.env}
+      AUTH_BROKER_URL: ${AUTH_BROKER_URL:-http://host.docker.internal:8899/api/moonbox}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?set PUBLIC_ORIGIN in /srv/moonbox/.env}
+      VAULT_ENC_KEY: ${VAULT_ENC_KEY:?set VAULT_ENC_KEY in /srv/moonbox/.env}
       SMTP_USER: ${SMTP_USER:-chaotools2026@163.com}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_HOST: ${SMTP_HOST:-smtp.163.com}

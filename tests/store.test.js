@@ -6,7 +6,7 @@ const path = require('path');
 const { JsonStore, Collection } = require('../src/store');
 
 test('save 前把上一版保留为 .bak，首次写入不产生备份', async () => {
-  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'love-vault-bak-'));
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'moonbox-bak-'));
   try {
     const file = path.join(dir, 'data.json');
     const store = new JsonStore(file, {});
@@ -25,7 +25,7 @@ test('save 前把上一版保留为 .bak，首次写入不产生备份', async (
 });
 
 test('addMany 只写入一次集合，并在写入失败时恢复内存数据', async () => {
-  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'love-vault-many-'));
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'moonbox-many-'));
   try {
     const collection = new Collection(path.join(dir, 'items.json'));
     await collection.load();
@@ -41,7 +41,7 @@ test('addMany 只写入一次集合，并在写入失败时恢复内存数据', 
 });
 
 test('并发写入按队列持久化，不再争抢同一个临时文件', async () => {
-  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'love-vault-concurrent-'));
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'moonbox-concurrent-'));
   try {
     const collection = new Collection(path.join(dir, 'items.json'));
     await collection.load();

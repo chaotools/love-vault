@@ -11,4 +11,4 @@ cleanup() {
 trap cleanup EXIT
 
 printf '%s\n' "$cnb_token" | docker login docker.cnb.cool -u cnb --password-stdin >/dev/null
-/srv/love-vault/release.sh "$TAG"
+/srv/moonbox/release.sh "$TAG"

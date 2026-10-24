@@ -29,7 +29,7 @@ function appFor(collection, vault) {
 }
 
 test('持久化照片列表始终提供媒体 URL，并安全处理缺失缩略图', async () => {
-  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'love-vault-media-list-'));
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'moonbox-media-list-'));
   try {
     const vault = { mediaDir: path.join(root, 'media'), thumbDir: path.join(root, 'thumbs') };
     await fsp.mkdir(vault.thumbDir, { recursive: true });
@@ -54,7 +54,7 @@ test('持久化照片列表始终提供媒体 URL，并安全处理缺失缩略�
 });
 
 test('手动拍摄时间优先于文件元数据和上传时间', async () => {
-  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'love-vault-media-date-'));
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'moonbox-media-date-'));
   try {
     const mediaDir = path.join(root, 'media');
     const thumbDir = path.join(root, 'thumbs');
@@ -72,7 +72,7 @@ test('手动拍摄时间优先于文件元数据和上传时间', async () => {
 });
 
 test('上传白名单：拒绝非媒体文件，接受图片', async () => {
-  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'love-vault-upload-'));
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'moonbox-upload-'));
   try {
     const vault = { mediaDir: path.join(root, 'media'), thumbDir: path.join(root, 'thumbs') };
     await fsp.mkdir(vault.mediaDir, { recursive: true });
@@ -109,7 +109,7 @@ test('上传白名单：拒绝非媒体文件，接受图片', async () => {
 });
 
 test('上传校验拒绝 MIME/扩展名不符、伪造图片和超限照片，并清理同批已处理媒体', async () => {
-  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'love-vault-strict-upload-'));
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'moonbox-strict-upload-'));
   try {
     const vault = { mediaDir: path.join(root, 'media'), thumbDir: path.join(root, 'thumbs') };
     await fsp.mkdir(vault.mediaDir, { recursive: true });

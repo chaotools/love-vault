@@ -46,6 +46,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build production image
-        run: docker build --tag love-vault-ci:${{ github.sha }} .
+        run: docker build --tag moonbox-ci:${{ github.sha }} .
       - name: Verify writes against a legacy bind mount
-        run: bash tests/container-smoke.sh love-vault-ci:${{ github.sha }}
+        run: bash tests/container-smoke.sh moonbox-ci:${{ github.sha }}

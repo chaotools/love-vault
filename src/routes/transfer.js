@@ -44,7 +44,7 @@ const importUpload = multer({
   storage: multer.diskStorage({
     destination: async (req, file, cb) => {
       try {
-        const dir = path.join(os.tmpdir(), 'love-vault-imports');
+        const dir = path.join(os.tmpdir(), 'moonbox-imports');
         await fsp.mkdir(dir, { recursive: true });
         cb(null, dir);
       } catch (e) { cb(e); }
@@ -77,7 +77,7 @@ function mediaDestination(entryPath) {
     const prefix = dir + '/';
     if (!normalized.startsWith(prefix)) continue;
     const name = normalized.slice(prefix.length);
-    // Love Vault 媒体目录是扁平布局；拒绝子目录与路径穿越。
+    // 月匣 媒体目录是扁平布局；拒绝子目录与路径穿越。
     if (!name || name !== path.basename(name) || name.includes('\0')) throw new Error(`备份包含非法媒体路径: ${normalized}`);
     const ext = media.extOf(name);
     if (dir === 'media' && !(IMAGE_EXT.has(ext) || media.VIDEO_EXT.has(ext))) throw new Error(`备份包含不支持的媒体类型: ${name}`);
@@ -127,7 +127,7 @@ function transferRouter(vaultResolver) {
     const vault = resolve(req);
     try {
       const stamp = new Date().toISOString().slice(0, 10);
-      res.attachment(`love-vault-backup-${stamp}.zip`);
+      res.attachment(`moonbox-backup-${stamp}.zip`);
       const archive = archiver('zip', { zlib: { level: 8 } });
       archive.on('error', (e) => res.destroy(e));
       archive.pipe(res);

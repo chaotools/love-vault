@@ -1,8 +1,8 @@
 services:
-  love-vault:
+  moonbox:
     # 本地开发使用 docker compose up --build；生产环境使用 deploy/docker-compose.yml。
     build: .
-    container_name: love-vault
+    container_name: moonbox
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000" # 仅由本机 Nginx / 小程序后端访问

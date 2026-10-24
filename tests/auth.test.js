@@ -16,18 +16,18 @@ function run(middleware, headers = {}) {
 }
 
 test('internal requests need both the service token and a valid opaque user id', () => {
-  const previous = process.env.MOBILE_SERVICE_TOKEN;
-  process.env.MOBILE_SERVICE_TOKEN = 'test-service-token';
-  assert.deepEqual(run(requireAuth, { 'x-love-vault-service-token': 'test-service-token', 'x-love-vault-user-id': '3aa6dbfc-a08c-4f27-9b13-96ee1891cb7c' }), {
+  const previous = process.env.MOONBOX_SERVICE_TOKEN;
+  process.env.MOONBOX_SERVICE_TOKEN = 'test-service-token';
+  assert.deepEqual(run(requireAuth, { 'x-moonbox-service-token': 'test-service-token', 'x-moonbox-user-id': '3aa6dbfc-a08c-4f27-9b13-96ee1891cb7c' }), {
     nextCalled: true, statusCode: null
   });
-  assert.deepEqual(run(requireAuth, { 'x-love-vault-service-token': 'wrong', 'x-love-vault-user-id': '3aa6dbfc-a08c-4f27-9b13-96ee1891cb7c' }), {
+  assert.deepEqual(run(requireAuth, { 'x-moonbox-service-token': 'wrong', 'x-moonbox-user-id': '3aa6dbfc-a08c-4f27-9b13-96ee1891cb7c' }), {
     nextCalled: false, statusCode: 401
   });
-  assert.deepEqual(run(requireAuth, { 'x-love-vault-service-token': 'test-service-token' }), { nextCalled: false, statusCode: 401 });
+  assert.deepEqual(run(requireAuth, { 'x-moonbox-service-token': 'test-service-token' }), { nextCalled: false, statusCode: 401 });
 
-  if (previous === undefined) delete process.env.MOBILE_SERVICE_TOKEN;
-  else process.env.MOBILE_SERVICE_TOKEN = previous;
+  if (previous === undefined) delete process.env.MOONBOX_SERVICE_TOKEN;
+  else process.env.MOONBOX_SERVICE_TOKEN = previous;
 });
 
 test('web login status forwards its secret in a JSON POST body, never in the broker URL', async () => {
@@ -41,7 +41,7 @@ test('web login status forwards its secret in a JSON POST body, never in the bro
   });
 
   try {
-    process.env.AUTH_BROKER_URL = 'https://broker.example/api/love-vault';
+    process.env.AUTH_BROKER_URL = 'https://broker.example/api/moonbox';
     global.fetch = async (url, options) => {
       calls.push({ url, options });
       return new Response(JSON.stringify({ status: 'pending' }), {
@@ -58,7 +58,7 @@ test('web login status forwards its secret in a JSON POST body, never in the bro
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { status: 'pending' });
     assert.equal(calls.length, 1);
-    assert.equal(calls[0].url, 'https://broker.example/api/love-vault/web-login/status');
+    assert.equal(calls[0].url, 'https://broker.example/api/moonbox/web-login/status');
     assert.ok(!calls[0].url.includes('secret'));
     assert.equal(calls[0].options.method, 'POST');
     assert.deepEqual(JSON.parse(calls[0].options.body), { id: 'login-id', secret: 'secret-value' });
@@ -81,7 +81,7 @@ test('auth status exposes an opaque, stable per-user cache scope', async () => {
   const userB = '4bb7ecfd-b19d-4a38-8c24-a7ff2902dc8d';
   const statusFor = async (userId) => {
     const response = await fetch(`http://127.0.0.1:${server.address().port}/api/auth/status`, {
-      headers: { Cookie: `vault_session=${encodeURIComponent(mintSession(userId))}` }
+      headers: { Cookie: `moonbox_session=${encodeURIComponent(mintSession(userId))}` }
     });
     assert.equal(response.status, 200);
     return response.json();

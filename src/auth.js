@@ -1,23 +1,23 @@
-// Love Vault 身份边界：网页会话来自小程序扫码，服务端代理必须同时提供用户 ID。
+// 月匣 身份边界：网页会话来自小程序扫码，服务端代理必须同时提供用户 ID。
 const express = require('express');
 const crypto = require('crypto');
 const QRCode = require('qrcode');
 const { rateLimit } = require('./rate-limit');
 
-const COOKIE = 'vault_session';
-const SERVICE_TOKEN_HEADER = 'x-love-vault-service-token';
-const USER_HEADER = 'x-love-vault-user-id';
+const COOKIE = 'moonbox_session';
+const SERVICE_TOKEN_HEADER = 'x-moonbox-service-token';
+const USER_HEADER = 'x-moonbox-user-id';
 const USER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // 本地单用户模式：未配置任何认证环境变量时直接放行，数据仍用 data/ 根目录的旧布局
 const LOCAL_USER_ID = 'local';
 function authConfigured() {
-  return Boolean(process.env.WEB_SESSION_SECRET) || Boolean(process.env.MOBILE_SERVICE_TOKEN);
+  return Boolean(process.env.WEB_SESSION_SECRET) || Boolean(process.env.MOONBOX_SERVICE_TOKEN);
 }
 
 function secret() { return process.env.WEB_SESSION_SECRET || ''; }
 function serviceMatches(req) {
-  const expected = process.env.MOBILE_SERVICE_TOKEN || '';
+  const expected = process.env.MOONBOX_SERVICE_TOKEN || '';
   const actual = req.get(SERVICE_TOKEN_HEADER) || '';
   const userId = req.get(USER_HEADER) || '';
   if (!expected || !actual || !USER_ID.test(userId)) return false;
@@ -126,10 +126,10 @@ function router() {
   r.post('/web-exchange', exchangeLimit, express.json(), async (req, res) => {
     const ticket = String((req.body || {}).ticket || '');
     const broker = process.env.AUTH_BROKER_URL || '';
-    if (!ticket || !broker || !process.env.MOBILE_SERVICE_TOKEN || !secret()) return res.status(503).json({ error: '网页登录尚未配置' });
+    if (!ticket || !broker || !process.env.MOONBOX_SERVICE_TOKEN || !secret()) return res.status(503).json({ error: '网页登录尚未配置' });
     try {
       const response = await fetch(broker.replace(/\/$/, '') + '/internal/web-login/consume', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', [SERVICE_TOKEN_HEADER]: process.env.MOBILE_SERVICE_TOKEN },
+        method: 'POST', headers: { 'Content-Type': 'application/json', [SERVICE_TOKEN_HEADER]: process.env.MOONBOX_SERVICE_TOKEN },
         body: JSON.stringify({ ticket })
       });
       const body = await response.json().catch(() => ({}));
